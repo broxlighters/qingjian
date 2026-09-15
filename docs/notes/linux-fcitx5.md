@@ -20,7 +20,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now qingjian-linux-server.service
 ```
 
-不使用 systemd 时直接运行 `~/.local/bin/qingjian-linux-server`。自定义 prefix 的 service 文件需要用 `systemctl --user link /绝对前缀/share/systemd/user/qingjian-linux-server.service` 注册。Fcitx 用户目录之外的 prefix 还需要设置 Fcitx 的 addon / data 搜索路径，因此自定义前缀主要用于打包和安装测试。卸载：`apps/linux/scripts/uninstall.sh`（相同的 `--prefix`），保留用户配置、学习数据、日志。安装和卸载都不修改 Fcitx profile。
+不使用 systemd 时直接运行 `~/.local/bin/qingjian-linux-server`。自定义 prefix 的 service 文件需要用 `systemctl --user link /绝对前缀/share/systemd/user/qingjian-linux-server.service` 注册。Fcitx 的默认 addon 搜索路径不含 `~/.local/lib/fcitx5`；安装脚本会将插件的绝对路径写入 addon 配置的 `Library`，无需修改 Fcitx 进程环境。Fcitx 用户目录之外的 prefix 仍需要设置 data 搜索路径，以找到 addon 与输入法元数据，因此自定义前缀主要用于打包和安装测试。卸载：`apps/linux/scripts/uninstall.sh`（相同的 `--prefix`），保留用户配置、学习数据、日志。安装和卸载都不修改 Fcitx profile。
 
 ## 数据与运行参数
 
@@ -42,6 +42,8 @@ systemctl --user enable --now qingjian-linux-server.service
 插件使用 InputContextProperty 管理生命周期。密码 / Disable 直接放行，Sensitive 使用 Engine 私密模式，能力全空也按私密处理。能力变化立即同步 Privacy 并清理面板，Shift / 停用 / 失焦的 Commit 使用同一入口再次刷新 Privacy；Fcitx 在能力尚未改变前发出的 CapabilityChanged 停用事件直接保守清理，不把旧组句提交到新密码框。组句消失或断线清空面板；I/O 使用共享 200 ms 截止时间并禁用 SIGPIPE，下一次按键重新握手。候选鼠标选择与翻页回到 Server，带帧序号防止旧候选回调选中新帧。
 
 ## 验证记录与未完成验收
+
+2026-09-15 本机安装验证：在 Ubuntu 26.04 / Fcitx5 5.1.19 的现有 GNOME Wayland 会话中安装 release、启用用户服务并注册青简。首次实际加载发现用户 lib 不在 addon 搜索路径，已修正安装脚本；修正后通过运行中 Fcitx5 的 D-Bus 输入上下文确认插件加载、拼音预编辑及 `nihao` 上屏“你好”。这是实际守护进程链路验证，尚不代表各桌面应用的输入验收通过。
 
 已提供 Router 输入/分页/隔离/持久化测试、真 socket 连接隔离与重启测试、Fcitx 实际 InputContext 的无桌面集成测试（preedit UTF-8 光标、译词 annotation、鼠标选词、密码旁路、断线放行）。新增初始化 Fcitx 事件链的 FocusOut 回归：无客户端 preedit 由插件提交，Preedit 由框架提交，Preedit + ClientUnfocusCommit 由客户端提交，三路均恰好上屏一次。另覆盖 Shift/停用遇到 Sensitive、Password、Disable 和未知能力时的协议顺序，以及私密缓存不会跨边界写入日志或学习文件。这些测试不能替代桌面前端验收。
 

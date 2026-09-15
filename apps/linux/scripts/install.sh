@@ -21,6 +21,14 @@ cmake -S "$repo_root/apps/linux/fcitx5" -B "$repo_root/build/fcitx5" -DCMAKE_BUI
 cmake --build "$repo_root/build/fcitx5" --parallel
 ctest --test-dir "$repo_root/build/fcitx5" --output-on-failure
 cmake --install "$repo_root/build/fcitx5" --prefix "$install_prefix"
+# Fcitx 的 addon 搜索路径不含用户 lib；登记实际路径，重启后即可加载。
+python3 - "$install_prefix" <<'PY'
+import pathlib, sys
+prefix = pathlib.Path(sys.argv[1])
+addon = prefix / 'share/fcitx5/addon/qingjian.conf'
+library = prefix / 'lib/fcitx5/qingjian'
+addon.write_text(addon.read_text().replace('Library=qingjian\n', f'Library={library}\n'))
+PY
 install -Dm755 "$repo_root/target/$profile/qingjian-linux-server" "$install_prefix/bin/qingjian-linux-server"
 resource_dir="$install_prefix/share/qingjian/resources"
 mkdir -p "$resource_dir/assets" "$resource_dir/data/generated"

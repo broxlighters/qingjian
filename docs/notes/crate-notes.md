@@ -172,6 +172,8 @@ IMK 输入法，源码按 `app / host / imk / candidates / menubar / preferences
 
 程序资源安装到 `share/qingjian/resources/`，与 XDG 用户学习目录分开；卸载只移除程序资源。Linux 候选帧保留固定短语之间的空槽位，Fcitx 将它们显示为不可选占位，导航跳过空槽位，数字与鼠标选择使用相同位置。
 
+用户安装脚本将插件的绝对路径写入 addon 配置的 `Library`，因为 Fcitx5 默认不会搜索 `~/.local/lib/fcitx5`。重新安装时按当前 prefix 重新生成该路径。
+
 `apps/linux/server` 使用独立产品版本 `0.1.0-dev`，Fcitx5 默认候选 UI。Core 的 `EngineSession` 仅保存输入状态，Router 按 SessionId 交换组句、历史、标点和学习链；词库、用户词频/用户词/个人 n-gram、统计与词汇记录共用进程内唯一实例，避免多个会话覆盖同一个文件。Unix socket 两端校验 UID，版本握手、连接编号重映射、断线回收、200 ms 客户端截止时间和候选帧版本检查都已接入。
 
 主词库、领域词库、释义、emoji、英文词表、LM 与样例按 `AssemblySpec` 装配；Linux 不启用云/神经重排。XDG 配置/数据/日志路径、安装/卸载、协议和验证命令详见 [Linux Fcitx5 工程记录](linux-fcitx5.md)。桌面兼容矩阵仍待实测。
