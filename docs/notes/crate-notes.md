@@ -158,3 +158,15 @@ IMK 输入法，源码按 `app / host / imk / candidates / menubar / preferences
 - `phrases`：挖短语层（两遍扫语料：相邻两词、两段二元都够频的相邻三词，总次数与对话语料次数都 ≥ 2000 + 边界规则，读音由成分词拼出；我的 / 不知道 / 有没有 这类常用词表不收的组合，
   `assets/lexicon/phrases.tsv`；词库已并入过短语时重跑加 `--refresh`）。
 - `pack dict|lm|glossary`：打 `.qj`（释义表也进容器）。
+
+## Linux Server / Fcitx5
+
+程序资源安装到 `share/qingjian/resources/`，与 XDG 用户学习目录分开；卸载只移除程序资源。Linux 候选帧保留固定短语之间的空槽位，Fcitx 将它们显示为不可选占位，导航跳过空槽位，数字与鼠标选择使用相同位置。
+
+用户安装脚本将插件的绝对路径写入 addon 配置的 `Library`，因为 Fcitx5 默认不会搜索 `~/.local/lib/fcitx5`。重新安装时按当前 prefix 重新生成该路径。
+
+`apps/linux/server` 使用独立产品版本 `0.1.0-dev`，Fcitx5 默认候选 UI。Core 的 `EngineSession` 仅保存输入状态，Router 按 SessionId 交换组句、历史、标点和学习链；词库、用户词频/用户词/个人 n-gram、统计与词汇记录共用进程内唯一实例，避免多个会话覆盖同一个文件。Unix socket 两端校验 UID，版本握手、连接编号重映射、断线回收、200 ms 客户端截止时间和候选帧版本检查都已接入。
+
+主词库、领域词库、释义、emoji、英文词表、LM 与样例按 `AssemblySpec` 装配；Linux 不启用云/神经重排。XDG 配置/数据/日志路径、安装/卸载、协议和验证命令详见 [Linux Fcitx5 工程记录](linux-fcitx5.md)。桌面兼容矩阵仍待实测。
+
+Linux 的 `Privacy` 实际变化会调用 Core `discard_input`，无痕丢弃该上下文的组句、透传缓存、历史、学习链与候选；挂起会话走 `EngineSession::discard_input`。`set_private` 仍只恢复写入开关，兼容 Windows 第一帧后报告隐私，普通/私密独立会话切换不丢组句。关闭挂起会话与进程退出均先按该会话隐私状态结束透传日志，再恢复其他上下文。Fcitx 的所有 Commit 入口统一刷新 Privacy；能力改变立即清面板，密码/Disable 不提交旧组句；FocusOut 只有服务端 preedit 时由插件提交，客户端 preedit 由 Fcitx 或 ClientUnfocusCommit 客户端处理。

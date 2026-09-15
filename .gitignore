@@ -6,3 +6,6 @@
 /logs
 /data
 .playwright-mcp/
+
+# Linux Fcitx5 local CMake build
+/build/fcitx5/

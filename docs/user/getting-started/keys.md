@@ -87,3 +87,9 @@ macOS 上应避开 `⌃ + 数字`（系统切换桌面）与 `⌘ + 数字`（�
 | `?` + 拼音 | 问字（需打开云联想） |
 
 两个平台相同，详见 [快捷输入](../input/shortcuts.md)。`v` 与 `u` 可在「快捷键」页改为 v、u、i 三者之一。
+
+## Linux Fcitx5
+
+Linux 当前使用 Fcitx5 候选窗口：Tab/Shift+Tab 前后移动高亮，PageUp/PageDown 翻页，Delete 删除拼音光标后的字母。单击 Shift 切换中英文。译词快捷键默认 Alt+数字 / Alt+Shift+数字；删除候选默认 Shift+数字。完整安装和使用说明见 [Linux](linux.md)。
+
+Linux 输入框进入或退出私密状态时会清空待上屏拼音；失焦时普通输入框的拼音原样上屏，不会重复提交。

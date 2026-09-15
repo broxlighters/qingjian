@@ -1,4 +1,4 @@
-# 三个 job：Linux 跑 fmt / clippy / 全 workspace 测试（排除 IMK 外壳）；macOS 与 Windows runner 各编各的壳并跑平台测试，
+# 三个 job：Linux 跑 fmt / clippy / 全 workspace 测试（排除 IMK 外壳）与 Fcitx5 插件检查；macOS 与 Windows runner 各编各的壳并跑平台测试，
 # 平台特有的编译错（Objective-C 调用、TSF 导出、WinUI）在 PR 里就暴露，不等发版。仓库公开，Actions 不计费。
 # actions 一律钉到 commit（注释里是对应的标签），Dependabot 每周提 PR 更新；cargo 全加 --locked，Cargo.lock 没提交就报错。
 name: ci
@@ -20,7 +20,8 @@ env:
 
 jobs:
   core:
-    runs-on: ubuntu-latest
+    # Linux 壳首个支持目标；ubuntu-latest 仍可能提供较旧的 Fcitx5 开发包。
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,6 +34,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
+      - name: Install Fcitx5 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev
+
       - name: Format
         run: cargo fmt --all --check
 
@@ -41,6 +47,12 @@ jobs:
 
       - name: Test
         run: cargo test --workspace --exclude qingjian-macos --locked
+
+      - name: Build and test Fcitx5 addon
+        run: |
+          cmake -S apps/linux/fcitx5 -B target/fcitx5 -DCMAKE_BUILD_TYPE=Debug
+          cmake --build target/fcitx5 --parallel 2
+          ctest --test-dir target/fcitx5 --output-on-failure
 
   macos:
     runs-on: macos-latest

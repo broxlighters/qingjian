@@ -2276,6 +2276,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "qingjian-linux-server"
+version = "0.1.0-dev"
+dependencies = [
+ "libc",
+ "qingjian-core",
+ "qingjian-dictionary",
+ "qingjian-learning",
+ "qingjian-lm",
+ "qingjian-platform",
+ "qingjian-translate",
+ "thiserror 2.0.20",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "qingjian-lm"
 version = "0.1.1"
 dependencies = [
