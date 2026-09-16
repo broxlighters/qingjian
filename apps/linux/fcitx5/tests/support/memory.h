@@ -37,6 +37,9 @@ public:
         return true;
     }
     int fd() const override { return pipe_[0]; }
+    bool healthy() override { return healthyConnection; }
+    bool healthyConnection = true;
+
     /// 当前是否成功提交位图。
     bool shown = false;
 

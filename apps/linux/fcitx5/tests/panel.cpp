@@ -2,6 +2,7 @@
 #include "panel/controller.h"
 #include "panel/backend/placement.h"
 #include "panel/backend/area.h"
+#include "panel/backend/probe.h"
 #include "panel/interaction/action.h"
 
 #include <fcitx/instance.h>
@@ -33,6 +34,21 @@ int main() {
     assert(x11Display("x11:display"));
     assert(!x11Display("wayland:wayland-0"));
     assert(!x11Display(""));
+    assert(!x11Display("x11:"));
+    using qingjian::panel::DisplayKind;
+    using qingjian::panel::probeBackend;
+    assert(probeBackend("wayland:wayland-0").display == DisplayKind::Wayland);
+    assert(!probeBackend("wayland:wayland-0").available);
+    assert(!probeBackend("wayland:").available);
+    assert(probeBackend("wayland:").display == DisplayKind::Wayland);
+    assert(probeBackend("x11:").display == DisplayKind::Unknown);
+    assert(probeBackend(":0").display == DisplayKind::Unknown);
+    assert(!probeBackend("x11::0").validated);
+#if defined(QJ_X11_BACKEND)
+    assert(probeBackend("x11::0").available);
+#else
+    assert(!probeBackend("x11::0").available);
+#endif
     FrameIdentity first{3, "context", 8};
     FrameIdentity second{3, "context", 9};
     assert(first != second);

@@ -34,9 +34,12 @@ public:
     bool accepts(const FrameIdentity &identity) const;
     void refresh(fcitx::InputContext *context);
 private:
+    const char *rejection(fcitx::InputContext *context) const;
     bool unavailable(const char *reason);
     void fail(fcitx::InputContext *context);
     bool click(int x, int y, unsigned button);
+    bool pollEvents(fcitx::InputContext *context, uint64_t submission, fcitx::IOEventFlags flags);
+    bool checkHealth(fcitx::InputContext *context, uint64_t submission, fcitx::EventSourceTime *timer, uint64_t now);
     void releaseResult();
     /// 当前输入帧开始 UI 处理的时间，不包含 IPC 等待。
     std::chrono::steady_clock::time_point ready_;
@@ -48,13 +51,24 @@ private:
     fcitx::EventLoop *loop_ = nullptr;
 
     /// 窗口随上下文销毁。
-    std::unique_ptr<Backend> backend_;
+    std::shared_ptr<Backend> backend_;
 
-    /// 后端绑定的 X display；上下文迁移后重新建窗。
+    /// 后端绑定的上下文 display；上下文迁移后重新建窗。
     std::string display_;
 
     /// fd 可读事件先于后端销毁。
     std::unique_ptr<fcitx::EventSourceIO> io_;
+
+    /// 检查没有 X 事件的合成器 selection 丢失；隐藏时禁用。
+    std::unique_ptr<fcitx::EventSourceTime> health_;
+
+    /// 出错的生产连接在下一帧重建；测试注入承载由夹具恢复。
+    bool backendFailed_ = false;
+
+    bool injected_ = false;
+
+    /// 本地提交代次，覆盖同一 Server identity 的重绘及同步事件回调。
+    uint64_t submission_ = 0;
 
     /// 结果在窗口贴图与鼠标命中结束后由 Rust 释放。
     void *result_ = nullptr;
@@ -82,5 +96,8 @@ private:
 
     /// 渲染或窗口出错时重启现有默认面板更新。
     std::function<void()> fallback_;
+
+    /// 借用已初始化渲染器；销毁/隐私边界不触发新的字体扫描。
+    std::function<void()> clearTextCache_;
 };
 }

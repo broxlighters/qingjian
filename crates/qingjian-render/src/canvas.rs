@@ -94,19 +94,38 @@ impl Canvas {
         data: &[u8],
         color: Color,
     ) {
-        for row in 0..height {
-            for col in 0..width {
-                let Some(&coverage) = data.get((row * width + col) as usize) else {
-                    return;
-                };
-                if coverage == 0 {
-                    continue;
-                }
-                self.blend_pixel(
-                    x + col as i32,
-                    y + row as i32,
-                    color.premultiplied(coverage),
-                );
+        let colors = std::array::from_fn(|coverage| color.premultiplied(coverage as u8));
+        self.blend_mask_colors(x, y, width, height, data, &colors);
+    }
+
+    /// 预先计算覆盖率对应的预乘颜色，一次裁限整张字形，避免逐像素换色与边界检查。
+    pub(crate) fn blend_mask_colors(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        data: &[u8],
+        colors: &[PremultipliedColorU8; 256],
+    ) {
+        let stride = self.pixmap.width() as usize;
+        let left = i64::from(x).max(0);
+        let top = i64::from(y).max(0);
+        let right = (i64::from(x) + i64::from(width)).min(self.pixmap.width().into());
+        let bottom = (i64::from(y) + i64::from(height)).min(self.pixmap.height().into());
+        if left >= right || top >= bottom {
+            return;
+        }
+        let pixels = self.pixmap.pixels_mut();
+        for row in top..bottom {
+            let source = ((row - i64::from(y)) * i64::from(width) + left - i64::from(x)) as usize;
+            let count = (right - left) as usize;
+            let Some(mask) = data.get(source..source + count) else {
+                return;
+            };
+            let offset = row as usize * stride + left as usize;
+            for (dst, &coverage) in pixels[offset..offset + count].iter_mut().zip(mask) {
+                blend_over(dst, colors[coverage as usize]);
             }
         }
     }
@@ -132,16 +151,26 @@ impl Canvas {
             return;
         }
         let index = y as usize * self.pixmap.width() as usize + x as usize;
-        let dst = &mut self.pixmap.pixels_mut()[index];
-        let inverse = 255 - src.alpha();
-        let a = src.alpha().saturating_add(mul_u8(dst.alpha(), inverse));
-        let channel = |s: u8, d: u8| s.saturating_add(mul_u8(d, inverse)).min(a);
-        let r = channel(src.red(), dst.red());
-        let g = channel(src.green(), dst.green());
-        let b = channel(src.blue(), dst.blue());
-        if let Some(out) = PremultipliedColorU8::from_rgba(r, g, b, a) {
-            *dst = out;
-        }
+        blend_over(&mut self.pixmap.pixels_mut()[index], src);
+    }
+}
+
+fn blend_over(dst: &mut PremultipliedColorU8, src: PremultipliedColorU8) {
+    if src.alpha() == 0 {
+        return;
+    }
+    if src.alpha() == 255 {
+        *dst = src;
+        return;
+    }
+    let inverse = 255 - src.alpha();
+    let a = src.alpha().saturating_add(mul_u8(dst.alpha(), inverse));
+    let channel = |s: u8, d: u8| s.saturating_add(mul_u8(d, inverse)).min(a);
+    let r = channel(src.red(), dst.red());
+    let g = channel(src.green(), dst.green());
+    let b = channel(src.blue(), dst.blue());
+    if let Some(out) = PremultipliedColorU8::from_rgba(r, g, b, a) {
+        *dst = out;
     }
 }
 
@@ -209,5 +238,26 @@ mod tests {
         let px = canvas.into_pixmap().pixel(0, 0).unwrap();
         assert_eq!(px.alpha(), 255);
         assert!((px.red() as i32 - 127).abs() <= 1, "got {}", px.red());
+    }
+
+    #[test]
+    fn clipped_scanlines_match_scalar_blending_for_every_coverage() {
+        let mask: Vec<u8> = (0..=255).collect();
+        for (x, y) in [(-3, -2), (0, 0), (4, 6), (i32::MIN, 0), (i32::MAX, 0)] {
+            let color = Color::rgba(179, 71, 29, 173);
+            let mut actual = Canvas::new(13, 11).unwrap();
+            let mut expected = Canvas::new(13, 11).unwrap();
+            actual.fill_rect(0.0, 0.0, 13.0, 11.0, Color::rgba(21, 65, 127, 92));
+            expected.fill_rect(0.0, 0.0, 13.0, 11.0, Color::rgba(21, 65, 127, 92));
+            actual.blend_mask(x, y, 16, 16, &mask, color);
+            for (i, &coverage) in mask.iter().enumerate() {
+                let px = i64::from(x) + (i % 16) as i64;
+                let py = i64::from(y) + (i / 16) as i64;
+                if (0..13).contains(&px) && (0..11).contains(&py) {
+                    expected.blend_pixel(px as i32, py as i32, color.premultiplied(coverage));
+                }
+            }
+            assert_eq!(actual.into_pixmap(), expected.into_pixmap());
+        }
     }
 }

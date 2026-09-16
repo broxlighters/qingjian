@@ -2,8 +2,8 @@
 use qingjian_platform::protocol::Frame;
 use qingjian_render::{FontLibrary, Renderer};
 use qingjian_render_ffi::{
-    ABI_VERSION, ImageInfo, qj_renderer_create, qj_renderer_destroy, qj_renderer_render,
-    qj_result_destroy, qj_result_exposure, qj_result_hit, qj_result_image,
+    ABI_VERSION, ImageInfo, qj_renderer_clear_text_cache, qj_renderer_create, qj_renderer_destroy,
+    qj_renderer_render, qj_result_destroy, qj_result_exposure, qj_result_hit, qj_result_image,
 };
 use std::ptr::{null, null_mut};
 
@@ -71,6 +71,8 @@ fn malformed_boundaries_fail_and_results_outlive_renderer() {
             0,
         );
         assert!(!result.is_null());
+        qj_renderer_clear_text_cache(handle);
+        qj_renderer_clear_text_cache(null_mut());
         qj_renderer_destroy(handle);
         let mut image = ImageInfo::default();
         assert!(qj_result_image(result, &mut image));

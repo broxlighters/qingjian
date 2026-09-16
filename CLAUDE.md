@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `crates/qingjian-render`：自绘渲染器（spike 中，分支 renderer-spike）：候选窗一帧 + 主题 → 位图，各平台只贴图。见 `docs/design/rendering.md`。
 - `apps/cli`：Core 的验证工具：查询、逐键计时、输入日志回放、整句评测、常数扫描。排序 / 整句 / 纠错的改动先跑它再合。
 - `apps/macos`：IMK 壳，按 `app / host / imk / candidates / menubar / preferences` 分目录；`scripts/bundle.sh --install` 装到本机，`--pkg` 出分发包。
-- `apps/linux`：`server`（Rust Engine + Unix socket 会话）+ `render-ffi`（阶段 2 纯渲染 C ABI）+ `fcitx5`（C++ 默认候选 UI 与显式构建开关后的 XCB 实验窗口）；安装/验证见 `docs/notes/linux-fcitx5.md` 与 `docs/notes/linux-ui-support.md`。
+- `apps/linux`：`server`（Rust Engine + Unix socket 会话）+ `render-ffi`（纯渲染 C ABI）+ `fcitx5`（默认候选 UI、后端选择与可选 X11 自绘窗口）+ `probes/wayland`（阶段 0 协议与色块探针）+ `upstream/fcitx5`（popup API 本地补丁与验证入口，不进入生产构建）；安装/验证见 `docs/notes/linux-fcitx5.md` 与 `docs/notes/linux-ui-support.md`。
 - `apps/windows`：`server`（Server 进程：Engine + IPC + 自绘候选窗与状态条）+ `tsf`（TSF DLL）+ `settings`（WinUI 3）+ `installer`（Inno）。DLL 不能带 Engine 的依赖树，所以是两个 package。
 - `tools/dict-convert`、`tools/gloss-gen`、`tools/corpus`：产品数据生成（词库 / 语言模型 / 释义表 / emoji / 英文词表），输出到 `data/generated/`（gitignore）。
 - `assets/`：随包数据源与样例，各目录有 README 写来源与许可。雾凇拼音（GPL）已彻底移除，不要再引入。

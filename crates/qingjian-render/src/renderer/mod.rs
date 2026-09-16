@@ -124,6 +124,11 @@ impl Metrics<'_> {
 }
 
 impl Renderer {
+    /// 丢弃包含原始文字的整形结果；平台在失焦、隐私变化和会话销毁时调用。
+    pub fn clear_text_cache(&mut self) {
+        self.text.clear_text_cache();
+    }
+
     pub fn new(library: FontLibrary) -> Self {
         let mut text = TextPainter::new(library);
         text.set_optical_size(Some(OPTICAL_SIZE));

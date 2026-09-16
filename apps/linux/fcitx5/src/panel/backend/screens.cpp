@@ -1,6 +1,6 @@
 //! 缺少 RandR 1.5 或有效屏幕时拒绝自绘，不用根窗口联合矩形冒充可用屏幕。
 #include "screens.h"
-#if defined(QJ_EXPERIMENTAL_X11)
+#if defined(QJ_X11_BACKEND)
 #include "area.h"
 #include <xcb/randr.h>
 #include <cstdlib>

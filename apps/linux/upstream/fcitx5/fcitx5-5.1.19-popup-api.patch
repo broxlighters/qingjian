@@ -1,0 +1,540 @@
+diff --git a/src/frontend/waylandim/CMakeLists.txt b/src/frontend/waylandim/CMakeLists.txt
+--- a/src/frontend/waylandim/CMakeLists.txt
++++ b/src/frontend/waylandim/CMakeLists.txt
+@@ -10,6 +10,7 @@
+
+ add_fcitx5_addon(waylandim
+     waylandim.cpp
++    popup.cpp
+     waylandimserverbase.cpp
+     waylandimserver.cpp
+     waylandimserverv2.cpp
+@@ -27,4 +28,4 @@
+ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/waylandim.conf" DESTINATION "${FCITX_INSTALL_PKGDATADIR}/addon"
+         COMPONENT config)
+
+-fcitx5_export_module(WaylandIM TARGET waylandim BUILD_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}" HEADERS waylandim_public.h)
++fcitx5_export_module(WaylandIM TARGET waylandim BUILD_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}" HEADERS waylandim_popup_public.h INSTALL)
+diff --git a/src/frontend/waylandim/popup.cpp b/src/frontend/waylandim/popup.cpp
+new file mode 100644
+--- /dev/null
++++ b/src/frontend/waylandim/popup.cpp
+@@ -0,0 +1,190 @@
++//! popup 创建、上下文校验与同步失效；连接读写仍由 wayland 模块调度。
++// SPDX-License-Identifier: LGPL-2.1-or-later
++#include "popup.h"
++#include <algorithm>
++#include <utility>
++#include "fcitx-utils/capabilityflags.h"
++#include "fcitx/event.h"
++#include "waylandim.h"
++#include "waylandimserverv2.h"
++#include "wl_compositor.h"
++
++namespace fcitx {
++namespace {
++class PopupHandle final : public WaylandPopup {
++public:
++    explicit PopupHandle(std::shared_ptr<WaylandPopupState> state)
++        : state_(std::move(state)) {}
++    ~PopupHandle() override {
++        state_->finish(WaylandPopupCloseReason::Closed, false);
++    }
++    wl_display *display() const override { return state_->display; }
++    wl_surface *surface() const override {
++        return wayland::rawPointer(state_->surface.get());
++    }
++    void close() override {
++        // 回调可能析构 this；栈上保持状态存活，回调后不再访问句柄。
++        auto state = state_;
++        state->finish(WaylandPopupCloseReason::Closed);
++    }
++private:
++    std::shared_ptr<WaylandPopupState> state_;
++};
++
++WaylandIMInputContextV2 *popupParent(InputContext *ic) {
++    if (auto *parent = dynamic_cast<WaylandIMInputContextV2 *>(ic)) {
++        return parent;
++    }
++    if (auto *virtualIC = dynamic_cast<VirtualInputContext *>(ic)) {
++        return dynamic_cast<WaylandIMInputContextV2 *>(virtualIC->parent());
++    }
++    return nullptr;
++}
++
++bool restricted(InputContext *ic) {
++    return ic->capabilityFlags().testAny(CapabilityFlags{
++        CapabilityFlag::Password, CapabilityFlag::Sensitive,
++        CapabilityFlag::Disable, CapabilityFlag::ClientSideInputPanel});
++}
++} // namespace
++
++WaylandPopupState::~WaylandPopupState() {
++    finish(WaylandPopupCloseReason::Closed, false);
++}
++
++void WaylandPopupState::finish(WaylandPopupCloseReason reason, bool notify) {
++    if (!display) {
++        return;
++    }
++    // 必须先使查询不可用，再通知消费者；重入 close() 不会重复通知。
++    auto callback = std::move(closed);
++    display = nullptr;
++    context = nullptr;
++    parent = nullptr;
++    surface->attach(nullptr, 0, 0);
++    surface->commit();
++    role.reset();
++    surface.reset();
++    if (notify && callback) {
++        callback(reason);
++    }
++}
++
++WaylandPopupAvailability WaylandIMModule::queryPopup(InputContext *ic) {
++    using A = WaylandPopupAvailability;
++    if (!ic) {
++        return A::InvalidContext;
++    }
++    if (stoppingPopups_ || invalidatingPopups_) {
++        return A::Unavailable;
++    }
++    if (ic->frontendName() != "wayland_v2") {
++        return A::UnsupportedFrontend;
++    }
++    auto *parent = popupParent(ic);
++    if (!parent) {
++        return A::InvalidContext;
++    }
++    auto *server = parent->server();
++    const auto displayName = ic->display();
++    if (displayName.compare(0, 8, "wayland:") != 0) {
++        return A::DisplayMismatch;
++    }
++    const auto name = displayName.substr(8); // 空默认连接名合法。
++    auto iter = serversV2_.find(name);
++    if (iter == serversV2_.end() || iter->second.get() != server ||
++        ic->focusGroup() != server->group()) {
++        return A::DisplayMismatch;
++    }
++    if (parent->popupUnavailable()) {
++        return A::Unavailable;
++    }
++    if (!parent->popupActive() || !parent->realFocus() || !ic->hasFocus() ||
++        parent->delegatedInputContext() != ic) {
++        return A::Inactive;
++    }
++    if (restricted(ic) || restricted(parent)) {
++        return A::Restricted;
++    }
++    auto *display = server->display();
++    const auto seats = display->getGlobals<wayland::WlSeat>();
++    if (!display->getGlobal<wayland::ZwpInputMethodManagerV2>() ||
++        std::none_of(seats.begin(), seats.end(), [parent](const auto &seat) {
++            return seat.get() == parent->popupSeat();
++        }) ||
++        wl_display_get_error(*display)) {
++        return A::Unavailable;
++    }
++    if (!display->getGlobal<wayland::WlCompositor>()) {
++        return A::MissingCompositor;
++    }
++    return A::Available;
++}
++
++std::unique_ptr<WaylandPopup>
++WaylandIMModule::createPopup(InputContext *ic, WaylandPopupClosed closed) {
++    if (!closed || queryPopup(ic) != WaylandPopupAvailability::Available) {
++        return nullptr;
++    }
++    auto *parent = popupParent(ic);
++    auto *display = parent->server()->display();
++    auto compositor = display->getGlobal<wayland::WlCompositor>();
++    // 使用原始请求先检查分配失败，再交给内部 wrapper 安装 listener。
++    auto *surface = wl_compositor_create_surface(
++        wayland::rawPointer(compositor.get()));
++    if (!surface) {
++        return nullptr;
++    }
++    auto state = std::make_shared<WaylandPopupState>();
++    state->surface = std::make_unique<wayland::WlSurface>(surface);
++    auto *role = zwp_input_method_v2_get_input_popup_surface(
++        wayland::rawPointer(parent->inputMethodV2()), surface);
++    if (!role) {
++        return nullptr;
++    }
++    state->role = std::make_unique<wayland::ZwpInputPopupSurfaceV2>(role);
++    state->context = ic;
++    state->parent = parent;
++    state->display = *display;
++    state->closed = std::move(closed);
++    std::erase_if(popups_, [](const auto &popup) { return popup.expired(); });
++    popups_.push_back(state);
++    return std::make_unique<PopupHandle>(std::move(state));
++}
++
++void WaylandIMModule::invalidatePopups(WaylandPopupCloseReason reason,
++                                      InputContext *ic, wl_display *display) {
++    const bool oldInvalidating = invalidatingPopups_;
++    invalidatingPopups_ = true;
++    // 固定快照：回调可释放其它句柄或重入失效，不使迭代器失效。
++    std::vector<std::shared_ptr<WaylandPopupState>> states;
++    for (const auto &weak : popups_) {
++        if (auto state = weak.lock(); state && state->display &&
++            (!ic || state->context == ic || state->parent == ic) &&
++            (!display || state->display == display)) {
++            states.push_back(std::move(state));
++        }
++    }
++    for (auto &state : states) {
++        state->finish(reason);
++    }
++    invalidatingPopups_ = oldInvalidating;
++}
++
++void WaylandIMModule::watchPopupContexts() {
++    for (auto type : {EventType::InputContextDestroyed,
++                      EventType::InputContextFocusOut,
++                      EventType::InputContextCapabilityAboutToChange,
++                      EventType::InputContextCapabilityChanged,
++                      EventType::InputContextReset,
++                      EventType::InputContextSwitchInputMethod,
++                      EventType::InputContextInputMethodDeactivated}) {
++        popupEvents_.push_back(instance_->watchEvent(
++            type, EventWatcherPhase::PreInputMethod, [this](Event &event) {
++                invalidatePopups(WaylandPopupCloseReason::ContextChanged,
++                                 static_cast<InputContextEvent &>(event)
++                                     .inputContext());
++            }));
++    }
++}
++} // namespace fcitx
+diff --git a/src/frontend/waylandim/popup.h b/src/frontend/waylandim/popup.h
+new file mode 100644
+--- /dev/null
++++ b/src/frontend/waylandim/popup.h
+@@ -0,0 +1,32 @@
++//! 内部 popup 状态；独立于消费者句柄，允许失效回调同步释放句柄。
++// SPDX-License-Identifier: LGPL-2.1-or-later
++#ifndef FCITX_WAYLANDIM_POPUP_H
++#define FCITX_WAYLANDIM_POPUP_H
++
++#include <memory>
++#include "waylandim_popup_public.h"
++#include "wl_surface.h"
++#include "zwp_input_popup_surface_v2.h"
++
++namespace fcitx {
++class WaylandIMInputContextV2;
++
++class WaylandPopupState {
++public:
++    ~WaylandPopupState();
++    void finish(WaylandPopupCloseReason reason, bool notify = true);
++
++    InputContext *context = nullptr;
++
++    WaylandIMInputContextV2 *parent = nullptr;
++
++    wl_display *display = nullptr;
++
++    std::unique_ptr<wayland::WlSurface> surface;
++
++    std::unique_ptr<wayland::ZwpInputPopupSurfaceV2> role;
++
++    WaylandPopupClosed closed;
++};
++} // namespace fcitx
++#endif
+diff --git a/src/frontend/waylandim/waylandim.cpp b/src/frontend/waylandim/waylandim.cpp
+--- a/src/frontend/waylandim/waylandim.cpp
++++ b/src/frontend/waylandim/waylandim.cpp
+@@ -24,6 +24,7 @@
+ #include "waylandimserver.h"
+ #include "waylandimserverv2.h"
+ #include "wlrappmonitor.h"
++#include "wl_compositor.h"
+ #include "zwp_input_method_v2.h"
+
+ FCITX_DEFINE_LOG_CATEGORY(waylandim, "waylandim")
+@@ -31,6 +32,7 @@
+ namespace fcitx {
+
+ WaylandIMModule::WaylandIMModule(Instance *instance) : instance_(instance) {
++    watchPopupContexts();
+     reloadConfig();
+     persistentVirtualKeyboard_ = *config_.persistentVirtualKeyboard;
+     createdCallback_ =
+@@ -38,6 +40,19 @@
+             [this](const std::string &name, wl_display *display,
+                    FocusGroup *group) {
+                 displays_[name] = display;
++                auto *connection = static_cast<wayland::Display *>(
++                    wl_display_get_user_data(display));
++                connection->requestGlobals<wayland::WlCompositor>();
++                popupGlobals_[name] = connection->globalRemoved().connect(
++                    [this, display](const std::string &interface,
++                                    const std::shared_ptr<void> &) {
++                        if (interface == "wl_compositor" ||
++                            interface == "wl_seat" ||
++                            interface == "zwp_input_method_manager_v2") {
++                            invalidatePopups(
++                                WaylandPopupCloseReason::Unavailable, nullptr, display);
++                        }
++                    });
+                 appMonitor(name);
+                 WaylandIMServer *server =
+                     new WaylandIMServer(display, group, name, this);
+@@ -48,14 +63,26 @@
+             });
+     closedCallback_ =
+         wayland()->call<IWaylandModule::addConnectionClosedCallback>(
+-            [this](const std::string &name, wl_display *) {
++            [this](const std::string &name, wl_display *display) {
++                // 回调结束后 wayland 模块才 disconnect；消费者必须在此清理。
++                invalidatePopups(WaylandPopupCloseReason::ConnectionClosed,
++                                 nullptr, display);
++                popupGlobals_.erase(name);
++                displays_.erase(name);
+                 servers_.erase(name);
+                 serversV2_.erase(name);
+                 appMonitors_.erase(name);
+             });
+ }
+
+-WaylandIMModule::~WaylandIMModule() {}
++WaylandIMModule::~WaylandIMModule() {
++    stoppingPopups_ = true;
++    invalidatePopups(WaylandPopupCloseReason::ModuleUnloaded);
++    closedCallback_.reset();
++    createdCallback_.reset();
++    // server 析构仍可能调用 invalidatePopups；保留状态容器至此之后。
++    serversV2_.clear();
++}
+
+ wayland::ZwpInputMethodV2 *WaylandIMModule::getInputMethodV2(InputContext *ic) {
+     if (ic->frontendName() != "wayland_v2") {
+diff --git a/src/frontend/waylandim/waylandim.h b/src/frontend/waylandim/waylandim.h
+--- a/src/frontend/waylandim/waylandim.h
++++ b/src/frontend/waylandim/waylandim.h
+@@ -11,6 +11,7 @@
+ #include <memory>
+ #include <string>
+ #include <unordered_map>
++#include <vector>
+ #include <wayland-client-core.h>
+ #include <wayland-client.h>
+ #include "fcitx-config/configuration.h"
+@@ -26,6 +27,7 @@
+ #include "appmonitor.h"
+ #include "wayland_public.h"
+ #include "waylandim_public.h"
++#include "waylandim_popup_public.h"
+
+ namespace fcitx {
+
+@@ -53,6 +55,7 @@
+ constexpr int32_t repeatHackDelay = 3000;
+ class WaylandIMServer;
+ class WaylandIMServerV2;
++class WaylandPopupState;
+
+ class WaylandIMModule : public AddonInstance {
+ public:
+@@ -65,6 +68,11 @@
+     wayland::ZwpInputMethodV2 *getInputMethodV2(InputContext *ic);
+
+     bool hasKeyboardGrab(const std::string &display) const;
++    WaylandPopupAvailability queryPopup(InputContext *ic);
++    std::unique_ptr<WaylandPopup> createPopup(InputContext *ic,
++                                               WaylandPopupClosed closed);
++    void invalidatePopups(WaylandPopupCloseReason reason,
++                          InputContext *ic = nullptr, wl_display *display = nullptr);
+
+     const Configuration *getConfig() const override { return &config_; }
+     void setConfig(const RawConfig &config) override {
+@@ -76,6 +84,8 @@
+
+     FCITX_ADDON_EXPORT_FUNCTION(WaylandIMModule, getInputMethodV2);
+     FCITX_ADDON_EXPORT_FUNCTION(WaylandIMModule, hasKeyboardGrab);
++    FCITX_ADDON_EXPORT_FUNCTION(WaylandIMModule, queryPopup);
++    FCITX_ADDON_EXPORT_FUNCTION(WaylandIMModule, createPopup);
+
+     AggregatedAppMonitor *appMonitor(const std::string &display);
+
+@@ -84,6 +94,12 @@
+     }
+
+ private:
++    void watchPopupContexts();
++    bool stoppingPopups_ = false;
++    bool invalidatingPopups_ = false;
++    std::vector<std::weak_ptr<WaylandPopupState>> popups_;
++    std::unordered_map<std::string, ScopedConnection> popupGlobals_;
++    std::vector<std::unique_ptr<HandlerTableEntry<EventHandler>>> popupEvents_;
+     Instance *instance_;
+     WaylandIMConfig config_;
+     std::unordered_map<std::string, wl_display *> displays_;
+diff --git a/src/frontend/waylandim/waylandim_popup_public.h b/src/frontend/waylandim/waylandim_popup_public.h
+new file mode 100644
+--- /dev/null
++++ b/src/frontend/waylandim/waylandim_popup_public.h
+@@ -0,0 +1,81 @@
++//! waylandim 的最小 v2 popup 公共接口；不暴露内部 Wayland wrapper。
++// SPDX-License-Identifier: LGPL-2.1-or-later
++#ifndef FCITX_WAYLANDIM_POPUP_PUBLIC_H
++#define FCITX_WAYLANDIM_POPUP_PUBLIC_H
++
++#include <functional>
++#include <memory>
++#include <fcitx/addoninstance.h>
++
++struct wl_display;
++struct wl_surface;
++
++namespace fcitx {
++class InputContext;
++
++enum class WaylandPopupAvailability {
++    Available,
++    InvalidContext,
++    UnsupportedFrontend, // v1、IBus/GNOME Shell 均不支持。
++    DisplayMismatch,
++    Inactive,
++    Restricted, // Password、Sensitive、Disable 或客户端自绘面板。
++    MissingCompositor,
++    Unavailable, // 连接关闭、input-method unavailable 或正在撤窗。
++};
++
++enum class WaylandPopupCloseReason {
++    Closed,
++    ContextChanged, // 失焦、销毁、reset、能力变化或输入法切换。
++    Deactivated,
++    Unavailable,
++    ConnectionClosed,
++    ModuleUnloaded,
++};
++
++using WaylandPopupClosed = std::function<void(WaylandPopupCloseReason)>;
++
++/**
++ * Fcitx 主线程专用。调用者拥有句柄，Fcitx 拥有 surface 和 v2 role。
++ * 只支持激活且匹配的 wayland_v2 上下文（包括它当前委托的虚拟上下文）。
++ * 不负责默认面板互斥；调用者仍须管理 custom InputPanel callback。
++ *
++ * surface 与 display 保证同连接；借用仅到 close/失效为止。禁止销毁它们、
++ * 设置它们的 listener/user_data/event queue 或给 surface 分配其它 role。
++ * surface listener/user_data 已由 Fcitx 占用。可使用原始 C surface 请求，
++ * 自建 wl_callback、wl_buffer 等对象可拥有各自的 listener/user_data。
++ * 所有附加对象（buffer、region 等）必须来自此 display，调用者负责保证。
++ * Fcitx 是唯一连接 reader：禁止 dispatch、read、prepare_read、roundtrip、
++ * disconnect 和第二个 fd reader；Fcitx 负责异步 dispatch/flush。
++ *
++ * 首版固定逻辑像素、buffer scale=1；不提供输出/缩放通知或鼠标交互保证。
++ * 默认空连接名 wayland: 合法。v2 popup protocol version 为 1。
++ *
++ * 失效先撤下并销毁 role/surface、使两个 getter 返回 nullptr，再同步调用
++ * closed 一次；此时连接尚未 disconnect。closed 必须销毁该 popup 所有
++ * 自建 Wayland proxy（尤其 frame callback/buffer/registry），不可等待
++ * release，并清除缓存指针。已提交 buffer 的存储不可覆写至 release；
++ * 销毁 proxy 后可释放自己的映射/FD，compositor 仍持有其映射。
++ * closed 可同步释放句柄/关闭其它句柄；不得抛异常、卸载 addon、销毁
++ * Instance/InputContext 或递归运行事件循环。自动失效回调期间不能创建 popup。
++ *
++ * close() 幂等且同步触发 closed；仅析构句柄则撤窗但不调用 closed，
++ * 因此消费者析构时须自行先销毁自建对象，或在成员析构前显式 close()。
++ * 已失效句柄可保留至 waylandim 卸载前；所有句柄必须在 addon 卸载前释放。
++ */
++class WaylandPopup {
++public:
++    virtual ~WaylandPopup() = default;
++    virtual wl_display *display() const = 0;
++    virtual wl_surface *surface() const = 0;
++    virtual void close() = 0;
++};
++} // namespace fcitx
++
++FCITX_ADDON_DECLARE_FUNCTION(WaylandIMModule, queryPopup,
++    fcitx::WaylandPopupAvailability(fcitx::InputContext *));
++// 空 closed 或重新检查失败时返回 nullptr；失败不会调用 closed。
++FCITX_ADDON_DECLARE_FUNCTION(WaylandIMModule, createPopup,
++    std::unique_ptr<fcitx::WaylandPopup>(fcitx::InputContext *, fcitx::WaylandPopupClosed));
++
++#endif
+diff --git a/src/frontend/waylandim/waylandimserverv2.cpp b/src/frontend/waylandim/waylandimserverv2.cpp
+--- a/src/frontend/waylandim/waylandimserverv2.cpp
++++ b/src/frontend/waylandim/waylandimserverv2.cpp
+@@ -159,10 +159,17 @@
+         });
+     ic_->activate().connect([this]() {
+         WAYLANDIM_DEBUG() << "ACTIVATE";
++        // 即使连续 activate 而没有 deactivate，也作废上一输入会话。
++        popupActive_ = false;
++        server_->parent()->invalidatePopups(
++            WaylandPopupCloseReason::Deactivated, this);
+         pendingActivate_ = true;
+     });
+     ic_->deactivate().connect([this]() {
+         WAYLANDIM_DEBUG() << "DEACTIVATE";
++        popupActive_ = false;
++        server_->parent()->invalidatePopups(
++            WaylandPopupCloseReason::Deactivated, this);
+         pendingDeactivate_ = true;
+     });
+     ic_->done().connect([this]() {
+@@ -235,6 +242,7 @@
+                     [this](int32_t rate, int32_t delay) {
+                         repeatInfoCallback(rate, delay);
+                     });
++                popupActive_ = !popupUnavailable_;
+                 focusInWrapper();
+             }
+         }
+@@ -246,7 +254,12 @@
+     ic_->textChangeCause().connect([this](uint32_t cause) {
+         WAYLANDIM_DEBUG() << "TEXTCHANGECAUSE:" << cause << keyboardGrab_.get();
+     });
+-    ic_->unavailable().connect([]() { WAYLANDIM_DEBUG() << "UNAVAILABLE"; });
++    ic_->unavailable().connect([this]() {
++        popupUnavailable_ = true;
++        popupActive_ = false;
++        server_->parent()->invalidatePopups(
++            WaylandPopupCloseReason::Unavailable, this);
++    });
+     timeEvent_ = server_->instance()->eventLoop().addTimeEvent(
+         CLOCK_MONOTONIC, now(CLOCK_MONOTONIC), 1,
+         [this](EventSourceTime *, uint64_t) {
+@@ -264,6 +277,9 @@
+ }
+
+ WaylandIMInputContextV2::~WaylandIMInputContextV2() {
++    popupActive_ = false;
++    server_->parent()->invalidatePopups(
++        WaylandPopupCloseReason::ContextChanged, this);
+     server_->remove(seat_.get());
+     destroy();
+ }
+diff --git a/src/frontend/waylandim/waylandimserverv2.h b/src/frontend/waylandim/waylandimserverv2.h
+--- a/src/frontend/waylandim/waylandimserverv2.h
++++ b/src/frontend/waylandim/waylandimserverv2.h
+@@ -94,6 +94,10 @@
+     const char *frontend() const override { return "wayland_v2"; }
+
+     auto inputMethodV2() { return ic_.get(); }
++    auto *server() const { return server_; }
++    auto *popupSeat() const { return seat_.get(); }
++    bool popupActive() const { return popupActive_; }
++    bool popupUnavailable() const { return popupUnavailable_; }
+
+     bool hasKeyboardGrab() const { return keyboardGrab_.get(); }
+
+@@ -144,6 +148,8 @@
+     std::unique_ptr<EventSourceTime> timeEvent_;
+     std::unique_ptr<VirtualInputContextManager> virtualICManager_;
+
++    bool popupActive_ = false;
++    bool popupUnavailable_ = false;
+     bool pendingActivate_ = false;
+     bool pendingDeactivate_ = false;
+     bool vkReady_ = false;

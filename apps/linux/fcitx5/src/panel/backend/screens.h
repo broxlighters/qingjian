@@ -1,6 +1,6 @@
 //! XCB RandR 屏幕及 EWMH 工作区缓存；只有配置通知后才重新查询。
 #pragma once
-#if defined(QJ_EXPERIMENTAL_X11)
+#if defined(QJ_X11_BACKEND)
 #include <xcb/xcb.h>
 #include <fcitx-utils/rect.h>
 #include <optional>

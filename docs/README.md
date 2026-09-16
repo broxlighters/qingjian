@@ -20,10 +20,13 @@ README.md 只介绍项目，所有技术内容放在这里，分四类：前三�
 | [plan/roadmap.md](plan/roadmap.md) | 分阶段路线图、各阶段的依赖关系与已完成项 |
 | [plan/zh_tw_support_plan.md](plan/zh_tw_support_plan.md) | 繁体输出与台湾注音支持的分析与方案（贡献者 pinchiu，#22）：读音标准差异、台湾用语、简转繁一对多；两条路线 |
 | [plan/fcitx5_support_plan.md](plan/fcitx5_support_plan.md) | Ubuntu / Fcitx5 接入方案：无阻塞项、插件与 Rust Server 架构、分阶段计划、验收与测试矩阵 |
+| [plan/linux_dual_ui_support_plan.md](plan/linux_dual_ui_support_plan.md) | Linux X11 / Wayland 双模式自绘候选窗：Wayland 承载、XCB 正式化、性能门槛与发布验收 |
 | [plan/todo.md](plan/todo.md) | 待办清单，按「从自用到能给别人用」排 |
 | [notes/crate-notes.md](notes/crate-notes.md) | 各 crate / app / tool 的实现要点：入口类型、数据文件、常数、生成命令 |
 | [notes/linux-fcitx5.md](notes/linux-fcitx5.md) | Linux Fcitx5 构建、安装、协议、数据目录与桌面验收范围 |
 | [notes/linux-ui-support.md](notes/linux-ui-support.md) | Linux 自绘支持矩阵、验证记录和待验收场景 |
+| [notes/linux-wayland-api.md](notes/linux-wayland-api.md) | Fcitx 5.1.19 公开 API 核验、Wayland 独立探针与阶段 0 阻塞 |
+| [notes/linux-dual-ui-review.md](notes/linux-dual-ui-review.md) | 双模式实现的 coder/reviewer 审查、修复与复审记录 |
 | [notes/fcitx5-review.md](notes/fcitx5-review.md) | Fcitx5 实现的补充复核、已修问题与正式复审状态 |
 | [notes/performance.md](notes/performance.md) | 历次性能优化：起因、定位方法、改法、数字前后对比与经验 |
 | [notes/release.md](notes/release.md) | 发版流程：CHANGELOG、标签触发的 CI 打包、产品数据包、签名公证的 Secrets、官网用的 `releases.json` |

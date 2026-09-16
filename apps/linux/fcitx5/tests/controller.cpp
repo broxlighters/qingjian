@@ -19,6 +19,7 @@ int main() {
     char *arguments[] = {program, disabled, nullptr};
     fcitx::Instance instance(2, arguments);
     instance.initialize();
+    fcitx::EventLoop healthLoop;
     fcitx::FocusGroup group("x11:memory-test", instance.inputContextManager());
     Context context(instance.inputContextManager());
     context.setFocusGroup(&group);
@@ -74,6 +75,33 @@ int main() {
     controller.invalidate(&context);
     assert(!controller.accepts(id));
 
+    // 无 X 事件的合成器丢失也要同步隐藏、解除 callback，再刷新默认 UI。
+    context.focusIn();
+    controller.configure(qingjian::panel::RendererMode::Qingjian, &healthLoop);
+    assert(render());
+    controller.refresh(&context);
+    memory->healthyConnection = false;
+    const auto priorFallbacks = fallbacks;
+    auto stop = healthLoop.addTimeEvent(CLOCK_MONOTONIC, fcitx::now(CLOCK_MONOTONIC) + 600000, 0,
+        [&](fcitx::EventSourceTime *, uint64_t) { healthLoop.exit(); return false; });
+    healthLoop.exec();
+    assert(fallbacks == priorFallbacks + 1 && !memory->shown && !controller.active());
+    assert(!context.inputPanel().customInputPanelCallback());
+    memory->healthyConnection = true;
+    controller.configure(qingjian::panel::RendererMode::Qingjian, &instance.eventLoop());
+    assert(render());
+    controller.refresh(&context);
+    fcitx::FocusGroup wayland("wayland:probe", instance.inputContextManager());
+    context.setFocusGroup(&wayland);
+    context.focusIn();
+    controller.refresh(&context);
+    assert(!controller.active() && !memory->shown && !controller.eligible(&context));
+    context.setFocusGroup(&group);
+    context.focusIn();
+    controller.configure(qingjian::panel::RendererMode::Auto, &instance.eventLoop());
+    assert(!controller.eligible(&context) && !render());
+    controller.configure(qingjian::panel::RendererMode::Qingjian, &instance.eventLoop());
+
     // 经真实 Rust 命中区域和 Fcitx fd 分发验证鼠标路径，不暴露 Controller 私有方法。
     context.focusIn();
     auto sparse = frame;
@@ -100,7 +128,7 @@ int main() {
     const auto previous = locate(-1, true), next = locate(1, true);
     const auto empty = std::array<int, 3>{first[0], (first[1] + third[1]) / 2, 1};
     assert(qj_result_hit(result.get(), empty[0], empty[1]) == -1);
-    for (unsigned scenario = 0; scenario < 7; ++scenario) {
+    for (unsigned scenario = 0; scenario < 8; ++scenario) {
         fcitx::EventLoop loop;
         auto testBackend = std::make_unique<MemoryBackend>();
         auto *input = testBackend.get();
@@ -111,10 +139,17 @@ int main() {
         assert(panel.renderFrame(&context, sparse, id, [&] { return valid; }, [&](int action) {
             actions.push_back(action);
             panel.hide(&context); // 同步提交/换页时，当前回调及结果可被撤销。
+            if (scenario == 7) {
+                // 同一 Server identity 的缩放/重绘也不能收到旧帧剩余点击。
+                assert(panel.renderFrame(&context, sparse, id, [&] { return valid; },
+                    [&](int) { assert(false); }, [](const nlohmann::json &) {}, [] { assert(false); },
+                    std::chrono::steady_clock::now()));
+                panel.refresh(&context);
+            }
         }, [](const nlohmann::json &) {}, [] { assert(false); }, std::chrono::steady_clock::now()));
         panel.refresh(&context);
         assert(panel.active());
-        if (scenario == 0) {
+        if (scenario == 0 || scenario == 7) {
             input->enqueue({0, 0, 1}); // 阴影和空槽之后的有效事件不能滞留。
             input->enqueue(empty);
             input->enqueue(third);
@@ -132,9 +167,10 @@ int main() {
             [&](fcitx::EventSourceTime *, uint64_t) { loop.exit(); return false; });
         loop.exec();
         assert(processed);
-        const std::vector<int> expected = scenario >= 5 ? std::vector<int>{} :
-            std::vector<int>{scenario == 0 ? 2 : (scenario == 1 || scenario == 3 ? -1 : -2)};
+        const std::vector<int> expected = scenario == 5 || scenario == 6 ? std::vector<int>{} :
+            std::vector<int>{scenario == 0 || scenario == 7 ? 2 : (scenario == 1 || scenario == 3 ? -1 : -2)};
         assert(actions == expected);
+        if (scenario == 7) assert(panel.active() && panel.accepts(id));
         panel.hide(&context);
     }
 }

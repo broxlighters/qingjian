@@ -9,15 +9,29 @@ fn percentile(values: &mut [u64], fraction: usize) -> f64 {
 }
 fn main() -> Result<(), Box<dyn Error>> {
     let init = Instant::now();
-    let mut renderer = Renderer::new(FontLibrary::system("zh-CN")?);
+    let fixed = std::env::args().any(|arg| arg == "--fixed-fonts");
+    let fonts = if fixed {
+        FontLibrary::from_fonts(
+            [
+                include_bytes!("../tests/fonts/NotoSans-Regular.ttf").to_vec(),
+                include_bytes!("../tests/fonts/QingjianFixtureCJK.otf").to_vec(),
+                include_bytes!("../tests/fonts/QingjianFixtureEmoji.ttf").to_vec(),
+            ],
+            "Noto Sans",
+            "zh-CN",
+        )?
+    } else {
+        FontLibrary::system("zh-CN")?
+    };
+    let mut renderer = Renderer::new(fonts);
     eprintln!(
-        "系统字体初始化 {:.3} ms（不计入预热样本）",
+        "字体初始化 {:.3} ms（不计入预热样本）",
         init.elapsed().as_secs_f64() * 1000.0
     );
     println!("sample,layout,scale,first_ms,p50_ms,p95_ms,p99_ms,layout_p95_ms,raster_p95_ms");
     for (name, source) in samples::frames() {
         for layout in [Layout::Vertical, Layout::Horizontal] {
-            for scale in [1.0, 2.0] {
+            for scale in [1.0, 1.25, 1.5, 2.0] {
                 let frame = source.clone();
                 let config = PanelConfig {
                     layout,

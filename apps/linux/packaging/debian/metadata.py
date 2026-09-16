@@ -31,7 +31,8 @@ def main() -> None:
         "built_at": built_at,
         "source": "https://github.com/qingjian-team/qingjian",
         "renderer": "fcitx",
-        "experimental_x11": False,
+        "x11_backend": True,
+        "wayland_backend": False,
     }
     (stage_path / "usr/share/qingjian/resources/build-info.json").write_text(
         json.dumps(info, ensure_ascii=True, indent=2) + "\n"

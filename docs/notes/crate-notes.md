@@ -97,6 +97,8 @@ Engine 侧在 `engine/rescoring/`：接了打分器就取 Viterbi 前 `RESCORE_P
 （过渡期退路，偏好设置「候选窗口」页可选）；`[general] font` 是候选窗字族名（空为系统字体，`bitmap/font_files.rs` 用 CoreText 按字族名找文件只加载那几个，没装就回系统字体；
 设置页 `preferences/font_picker/` 是搜索框 + 列表）。设计与验收见 `docs/design/rendering.md`。
 
+`text/` 按文字、像素字号、行高和点字号复用测量/绘制的整形结果，最多 512 段、2 MiB；颜色、gamma、删除线不进入整形键，高亮或主题变化继续使用新颜色。光学字号变更清整形和栅格；glyph raster 缓存达到 4096 项或 16 MiB 后回收，背景仍限制 8 张/8 MiB，gamma 表最多 16 项。字形按裁限后的行混合，覆盖率到预乘颜色的表每段计算一次，避免每字形分配 gamma 位图。`Renderer::clear_text_cache()` 丢弃文字及布局缓冲；Linux 在 reset/隐私变化/断线时经新增 C ABI 清理，不改变已有 result 生命周期。`examples/timing.rs` 支持 `--fixed-fonts`，固定许可字体与系统字体分别测 1/1.25/1.5/2×；离线数字不包含上传和 compositor 可见时间。
+
 ## apps/cli
 
 测试工具，`cargo run -p qingjian-cli -- kaifa`。
@@ -170,12 +172,18 @@ IMK 输入法，源码按 `app / host / imk / candidates / menubar / preferences
 
 ## Linux Server / Fcitx5
 
-程序资源安装到 `share/qingjian/resources/`，与 XDG 用户学习目录分开；卸载只移除程序资源。Linux 候选帧保留固定短语之间的空槽位，Fcitx 将它们显示为不可选占位，导航跳过空槽位，数字与鼠标选择使用相同位置。
+程序资源安装到 `share/qingjian/resources/`，与 XDG 用户学习目录分开；卸载只移除程序资源。Linux 候选帧保留固定短语之间的空槽位，Fcitx 将它们显示为不可选占位，导航跳过空槽位，数字与鼠标选择使用相同位置。`fcitx5/tests/desktop/` 提供独立 D-Bus/Xvfb/XDG 的 GTK4 输入夹具，覆盖键盘、鼠标及合成器缺失/退出后的默认面板回退；bus 禁用服务自动激活，回退需实际点击可见 ClassicUI，`regression.py` 包含禁用默认 UI 反例及外部缩放污染检查。复现命令见 [支持矩阵](linux-ui-support.md)。
 
 用户安装脚本将插件的绝对路径写入 addon 配置的 `Library`，因为 Fcitx5 默认不会搜索 `~/.local/lib/fcitx5`。重新安装时按当前 prefix 重新生成该路径。
+
+Fcitx 面板先由 `backend/probe` 分类上下文 display，再由 `backend/selector` 创建承载；不读取会话类型猜后端。`QINGJIAN_X11_BACKEND` 默认 ON，最小安装显式 OFF（脚本 `--disable-x11`），旧实验缓存只迁移一次且新开关优先。`auto` 的真实验收表目前为空，默认仍 `fcitx`。X11 位图上限 1600×900，同尺寸复用 pixmap/BGRA 缓冲，仅上传首尾变化行包围区域，失败后完整重传；合成器 selection 每 250 ms 发起查询，通过 fd/定时器非阻塞轮询 reply，超过 1 秒无响应即回退，连接/工作区/合成器变化先隐藏并解除回调、再刷新默认面板，下帧重建失败连接。本地 submission 防止同一 Server identity 的重绘接收旧鼠标事件；事件派发持有后端共享寿命。阶段 0 Wayland 探针独立构建，结果与公开 API 结论见 [Wayland 承载核验](linux-wayland-api.md)。
 
 `apps/linux/server` 使用独立产品版本 `0.1.0-dev`，Fcitx5 默认候选 UI。Core 的 `EngineSession` 仅保存输入状态，Router 按 SessionId 交换组句、历史、标点和学习链；词库、用户词频/用户词/个人 n-gram、统计与词汇记录共用进程内唯一实例，避免多个会话覆盖同一个文件。Unix socket 两端校验 UID，版本握手、连接编号重映射、断线回收、200 ms 客户端截止时间和候选帧版本检查都已接入。
 
 主词库、领域词库、释义、emoji、英文词表、LM 与样例按 `AssemblySpec` 装配；Linux 不启用云/神经重排。XDG 配置/数据/日志路径、安装/卸载、协议和验证命令详见 [Linux Fcitx5 工程记录](linux-fcitx5.md)。桌面兼容矩阵仍待实测。
 
 Linux 的 `Privacy` 实际变化会调用 Core `discard_input`，无痕丢弃该上下文的组句、透传缓存、历史、学习链与候选；挂起会话走 `EngineSession::discard_input`。`set_private` 仍只恢复写入开关，兼容 Windows 第一帧后报告隐私，普通/私密独立会话切换不丢组句。关闭挂起会话与进程退出均先按该会话隐私状态结束透传日志，再恢复其他上下文。Fcitx 的所有 Commit 入口统一刷新 Privacy；能力改变立即清面板，密码/Disable 不提交旧组句；FocusOut 只有服务端 preedit 时由插件提交，客户端 preedit 由 Fcitx 或 ClientUnfocusCommit 客户端处理。
+
+### Fcitx popup API 本地提案
+
+`apps/linux/upstream/fcitx5/` 保存固定 5.1.19 归档的最小 `waylandim` popup 公共 API patch、公开头消费者和 libwayland-server 生命周期夹具。它只支持激活匹配的 v2 context，Fcitx 独占连接 reader，surface/role 在同连接内创建；失效回调先撤窗再通知消费者销毁自有 buffer/callback。patch 可用 `check-patch.py` 重复应用校验，六项普通/ASan 测试通过。该提案未进入青简生产构建，真实 GNOME/KDE gate 未通过。

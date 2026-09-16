@@ -10,6 +10,7 @@
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <string>
 template <typename T> using Reply = std::unique_ptr<T, decltype(&std::free)>;
 std::vector<xcb_window_t> children(xcb_connection_t *connection, xcb_window_t root) {
     Reply<xcb_query_tree_reply_t> reply(xcb_query_tree_reply(connection, xcb_query_tree(connection, root), nullptr), &std::free);
@@ -18,6 +19,9 @@ std::vector<xcb_window_t> children(xcb_connection_t *connection, xcb_window_t ro
     return {first, first + xcb_query_tree_children_length(reply.get())};
 }
 int main() {
+    const char *reason = nullptr;
+    assert(!qingjian::panel::openXcb("", &reason));
+    assert(reason && std::string(reason) == "X11 display 为空");
     const char *display = std::getenv("QINGJIAN_XCB_SMOKE_DISPLAY");
     if (!display || !*display) return 77;
     int index = 0;
@@ -32,7 +36,7 @@ int main() {
     assert(focus);
     auto backend = qingjian::panel::openXcb(display);
     if (!backend) {
-        fprintf(stderr, "实验 XCB 不满足合成器、ARGB 或 RandR 条件，保留默认面板\n");
+        fprintf(stderr, "X11 后端不满足合成器、ARGB 或 RandR 条件，保留默认面板\n");
         xcb_disconnect(connection);
         return 77;
     }
@@ -62,6 +66,17 @@ int main() {
     assert(image && xcb_get_image_data_length(image.get()) >= 4);
     const auto *bgra = xcb_get_image_data(image.get());
     assert(bgra[0] == 30 && bgra[1] == 70 && bgra[2] == 220);
+    assert(backend->timing().uploadBytes == pixels.size());
+    assert(backend->present(pixels.data(), 100, 40, 400, cursor));
+    assert(backend->timing().uploadBytes == 0);
+    pixels[20 * 400] = 110;
+    assert(backend->present(pixels.data(), 100, 40, 400, cursor));
+    assert(backend->timing().uploadBytes == 400);
+    image.reset(xcb_get_image_reply(connection,
+        xcb_get_image(connection, XCB_IMAGE_FORMAT_Z_PIXMAP, window, 0, 20, 1, 1, 0xffffffff), nullptr));
+    assert(image && xcb_get_image_data(image.get())[2] == 110);
+    assert(backend->present(pixels.data(), 99, 40, 400, cursor));
+    assert(backend->timing().uploadBytes == 99 * 40 * 4);
     backend->hide();
     for (unsigned i = 0; i < 100; ++i) {
         attributes.reset(xcb_get_window_attributes_reply(connection, xcb_get_window_attributes(connection, window), nullptr));

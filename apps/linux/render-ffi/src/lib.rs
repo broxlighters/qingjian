@@ -20,6 +20,18 @@ pub extern "C" fn qj_render_abi_version() -> u32 {
     ABI_VERSION
 }
 
+/// 清理含文字的整形缓存，不影响已返回的独立结果句柄。
+/// # Safety
+/// handle 为有效独占 Renderer，或 null；不得并发使用。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qj_renderer_clear_text_cache(handle: *mut Renderer) {
+    let _ = catch_unwind(AssertUnwindSafe(|| {
+        if let Some(renderer) = unsafe { handle.as_mut() } {
+            renderer.clear_text_cache();
+        }
+    }));
+}
+
 /// 创建字体库，可能较慢，应在后台启用前初始化。
 #[unsafe(no_mangle)]
 pub extern "C" fn qj_renderer_create(version: u32) -> *mut Renderer {

@@ -37,7 +37,7 @@ QingjianEngine::QingjianEngine(AddonManager *manager)
     : instance_(manager->instance()), sessions_([](InputContext &) { return new qingjian::Session; }) {
     qingjian::panel::prepareRenderer();
     manager->instance()->inputContextManager().registerProperty("qingjian-session", &sessions_);
-#if defined(QJ_EXPERIMENTAL_X11)
+#if defined(QJ_X11_BACKEND)
     appearance_ = std::make_unique<qingjian::panel::Appearance>(instance_->eventLoop(), [this] {
         instance_->inputContextManager().foreach([this](InputContext *context) {
             auto *session = context->propertyFor(&sessions_);

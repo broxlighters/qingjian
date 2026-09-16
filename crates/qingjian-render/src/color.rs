@@ -1,4 +1,4 @@
-//! 颜色：sRGB 8 位 + alpha，与平台无关；到 tiny-skia / cosmic-text 的换算集中在这里。
+//! 颜色：sRGB 8 位 + alpha，与平台无关；到 tiny-skia 的换算集中在这里。
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Color {
@@ -33,10 +33,6 @@ impl Color {
 
     pub(crate) fn to_skia(self) -> tiny_skia::Color {
         tiny_skia::Color::from_rgba8(self.r, self.g, self.b, self.a)
-    }
-
-    pub(crate) fn to_cosmic(self) -> cosmic_text::Color {
-        cosmic_text::Color::rgba(self.r, self.g, self.b, self.a)
     }
 
     /// 乘上一层覆盖率（字形遮罩的像素值）后的预乘颜色。

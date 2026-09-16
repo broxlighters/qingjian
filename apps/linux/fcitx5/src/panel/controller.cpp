@@ -1,6 +1,7 @@
 //! 展示失败只切回默认 UI，不重发按键或 Commit。
 #include "controller.h"
-#include "backend/xcb.h"
+#include "backend/probe.h"
+#include "backend/selector.h"
 #include "interaction/action.h"
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputpanel.h>
@@ -29,38 +30,46 @@ std::shared_ptr<QjRenderer> renderer() {
 #endif
 }
 void prepareRenderer() try {
-#if defined(QJ_RENDER_FFI) && defined(QJ_EXPERIMENTAL_X11)
+#if defined(QJ_RENDER_FFI)
     (void)renderer();
 #endif
 } catch (const std::exception &) {
     FCITX_WARN() << "青简字体初始化未启动，保留 Fcitx 面板";
 }
 bool x11Display(const std::string &display) {
-    return display.rfind("x11:", 0) == 0 && display.size() > 4;
+    return displayKind(display) == DisplayKind::X11;
 }
-Controller::Controller(std::unique_ptr<Backend> backend) : backend_(std::move(backend)) {}
+Controller::Controller(std::unique_ptr<Backend> backend)
+    : backend_(std::move(backend)), injected_(bool(backend_)) {}
 Controller::~Controller() {
+    health_.reset();
     io_.reset();
     if (backend_) backend_->hide();
     releaseResult();
+    if (clearTextCache_) clearTextCache_();
 }
 void Controller::configure(RendererMode mode, fcitx::EventLoop *loop) {
     mode_ = mode;
     loop_ = loop;
-    if (mode != RendererMode::Fcitx)
-        FCITX_INFO() << "青简自绘处于实验阶段；未验收的后端保持 Fcitx 面板";
 }
 bool Controller::eligible(fcitx::InputContext *context) const {
-#if defined(QJ_EXPERIMENTAL_X11) && defined(QJ_RENDER_FFI)
-    // auto 目前没有通过真实桌面验收的路径；只有显式实验构建 + qingjian 可探测。
-    return mode_ == RendererMode::Qingjian && loop_ && context && context->hasFocus() &&
-           x11Display(context->display()) && context->cursorRect() != fcitx::Rect() &&
-           !context->capabilityFlags().testAny(fcitx::CapabilityFlag::PasswordOrSensitive) &&
-           !context->capabilityFlags().test(fcitx::CapabilityFlag::Disable) &&
-           context->capabilityFlags() != fcitx::CapabilityFlags();
+    return rejection(context) == nullptr;
+}
+const char *Controller::rejection(fcitx::InputContext *context) const {
+    if (mode_ == RendererMode::Fcitx) return "配置使用 Fcitx 面板";
+    if (!context || !context->hasFocus()) return "输入上下文没有焦点";
+    if (context->capabilityFlags().testAny(fcitx::CapabilityFlag::PasswordOrSensitive) ||
+        context->capabilityFlags().test(fcitx::CapabilityFlag::Disable) ||
+        context->capabilityFlags() == fcitx::CapabilityFlags()) return "私密或未知输入能力";
+#if defined(QJ_RENDER_FFI)
+    const auto probe = probeBackend(context->display());
+    if (!probe.available && !(injected_ && probe.display == DisplayKind::X11)) return probe.reason;
+    if (mode_ == RendererMode::Auto && !probe.validated) return "该后端尚未通过桌面和性能验收，auto 保留默认面板";
+    if (!loop_) return "主事件循环不可用";
+    if (probe.display == DisplayKind::X11 && context->cursorRect() == fcitx::Rect()) return "X11 光标坐标不可用";
+    return nullptr;
 #else
-    (void)context;
-    return false;
+    return "当前构建未启用自绘";
 #endif
 }
 void Controller::releaseResult() {
@@ -78,16 +87,23 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     hide(context);
     ready_ = ready;
 #if defined(QJ_RENDER_FFI)
-    if (!eligible(context) || !valid()) return unavailable("当前上下文或后端不满足自绘条件");
+    if (const auto *reason = rejection(context)) return unavailable(reason);
+    if (!valid || !valid()) return unavailable("帧身份已失效");
     auto engine = renderer();
     if (!engine) return unavailable("字体尚未就绪");
-    if (!display_.empty() && display_ != context->display()) {
+    clearTextCache_ = [weak = std::weak_ptr<QjRenderer>(engine)] {
+        if (auto current = weak.lock()) qj_renderer_clear_text_cache(current.get());
+    };
+    if ((!display_.empty() && display_ != context->display()) || (backendFailed_ && !injected_)) {
+        health_.reset();
         io_.reset();
         backend_.reset();
     }
+    backendFailed_ = false;
     display_ = context->display();
-    if (!backend_) backend_ = openXcb(display_.substr(4));
-    if (!backend_) return unavailable("XCB 承载不可用");
+    const char *backendReason = "窗口承载不可用";
+    if (!backend_) backend_ = openBackend(display_, &backendReason);
+    if (!backend_) return unavailable(backendReason);
     const auto scale = context->scaleFactor();
     if (!std::isfinite(scale) || scale < 0.5 || scale > 4.0) return unavailable("缩放超出范围");
     const auto bounds = backend_->bounds(context->cursorRect());
@@ -108,15 +124,17 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     fallback_ = std::move(fallback);
     previous_ = frame.value("page", 0U) > 0;
     next_ = frame.value("page", 0U) + 1 < frame.value("page_count", 1U);
-    io_ = loop_->addIOEvent(backend_->fd(), fcitx::IOEventFlag::In,
-        [this, context](fcitx::EventSourceIO *, int, fcitx::IOEventFlags) {
-            try {
-                if (!backend_->poll([this](int x, int y, unsigned b) { return click(x, y, b); }))
-                    fail(context);
-            } catch (const std::exception &) { fail(context); }
-            return true;
+    const auto submission = submission_;
+    io_ = loop_->addIOEvent(backend_->fd(), fcitx::IOEventFlags(fcitx::IOEventFlag::In) | fcitx::IOEventFlag::Err | fcitx::IOEventFlag::Hup,
+        [this, context, submission](fcitx::EventSourceIO *, int, fcitx::IOEventFlags flags) {
+            return pollEvents(context, submission, flags);
         });
     if (!io_) { hide(context); return unavailable("无法注册窗口事件"); }
+    health_ = loop_->addTimeEvent(CLOCK_MONOTONIC, fcitx::now(CLOCK_MONOTONIC) + 250000, 0,
+        [this, context, submission](fcitx::EventSourceTime *timer, uint64_t now) {
+            return checkHealth(context, submission, timer, now);
+        });
+    if (!health_) { hide(context); return unavailable("无法注册窗口健康检查"); }
     registerCallback(context);
     return true;
 #else
@@ -127,6 +145,38 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
 } catch (const std::exception &) {
     hide(context);
     return unavailable("渲染初始化异常");
+}
+// 事件源可在点击回调中同步销毁。先把闭包参数复制进普通调用栈，
+// 此后不再读取旧闭包；承载由局部 shared_ptr 持有到 poll 返回。
+bool Controller::pollEvents(fcitx::InputContext *context, uint64_t submission, fcitx::IOEventFlags flags) try {
+    auto backend = backend_;
+    if (submission != submission_) return true;
+    const bool failed = flags.test(fcitx::IOEventFlag::Err) || flags.test(fcitx::IOEventFlag::Hup) ||
+        !backend->poll([this, submission](int x, int y, unsigned b) {
+            return submission == submission_ && click(x, y, b);
+        });
+    if (failed && submission == submission_) fail(context);
+    return true;
+} catch (const std::exception &) {
+    if (submission == submission_) fail(context);
+    return true;
+}
+bool Controller::checkHealth(fcitx::InputContext *context, uint64_t submission, fcitx::EventSourceTime *timer, uint64_t now) try {
+    auto backend = backend_;
+    if (submission != submission_) return true;
+    if (!backend || !backend->healthy()) { fail(context); return true; }
+    // 同步查询可能把 X 事件读进内部队列，fd 未必再次可读。
+    const bool ok = backend->poll([this, submission](int x, int y, unsigned b) {
+        return submission == submission_ && click(x, y, b);
+    });
+    if (submission != submission_) return true;
+    if (!ok) { fail(context); return true; }
+    timer->setTime(now + 250000);
+    timer->setEnabled(true);
+    return true;
+} catch (const std::exception &) {
+    if (submission == submission_) fail(context);
+    return true;
 }
 bool Controller::unavailable(const char *reason) {
     if (mode_ != RendererMode::Fcitx && failure_ != reason) {
@@ -140,6 +190,7 @@ void Controller::registerCallback(fcitx::InputContext *context) {
         [this](fcitx::InputContext *ic) { refresh(ic); });
 }
 void Controller::fail(fcitx::InputContext *context) {
+    backendFailed_ = true;
     unavailable("窗口提交或显示条件发生变化");
     auto fallback = fallback_;
     hide(context);
@@ -149,7 +200,7 @@ void Controller::refresh(fcitx::InputContext *context) try {
 #if defined(QJ_RENDER_FFI)
     if (!result_) return;
     if (!valid_ || !valid_()) { hide(context); return; }
-    if (!eligible(context)) { fail(context); return; }
+    if (!eligible(context) || display_ != context->display()) { fail(context); return; }
     QjImageInfo image{};
     auto *result = static_cast<QjResult *>(result_);
     const auto upload = std::chrono::steady_clock::now();
@@ -162,9 +213,12 @@ void Controller::refresh(fcitx::InputContext *context) try {
     failure_.clear();
     if (std::getenv("QINGJIAN_UI_TIMINGS")) {
         const auto done = std::chrono::steady_clock::now();
+        const auto timing = backend_->timing();
         FCITX_INFO() << "青简 UI 耗时 ns: total=" << std::chrono::duration_cast<std::chrono::nanoseconds>(done - ready_).count()
                      << " layout=" << image.layout_ns << " raster=" << image.raster_ns
-                     << " upload=" << std::chrono::duration_cast<std::chrono::nanoseconds>(done - upload).count();
+                     << " backend=" << std::chrono::duration_cast<std::chrono::nanoseconds>(done - upload).count()
+                     << " probe=" << timing.probeNs << " convert=" << timing.convertNs << " upload=" << timing.uploadNs
+                     << " commit=" << timing.commitNs << " upload_bytes=" << timing.uploadBytes;
     }
     auto senses = nlohmann::json::array();
     uint32_t row = 0, sense = 0;
@@ -199,16 +253,25 @@ bool Controller::click(int x, int y, unsigned button) {
     return true;
 }
 void Controller::hide(fcitx::InputContext *context) {
+    ++submission_;
     active_ = false;
+    identity_ = {};
+    if (health_) health_->setEnabled(false);
     if (io_) io_->setEnabled(false);
-    if (backend_) backend_->hide();
+    if (backend_) { backend_->hide(); backend_->drain(); }
     releaseResult();
     valid_ = {}; action_ = {}; acknowledge_ = {}; fallback_ = {};
     if (context) context->inputPanel().setCustomInputPanelCallback({});
 }
 void Controller::invalidate(fcitx::InputContext *context) {
-    ++identity_.revision;
     hide(context);
+    if (!injected_) {
+        health_.reset();
+        io_.reset();
+        backend_.reset();
+        display_.clear();
+    }
+    if (clearTextCache_) clearTextCache_();
 }
 bool Controller::accepts(const FrameIdentity &identity) const {
     return active_ && identity_ == identity && valid_ && valid_();
