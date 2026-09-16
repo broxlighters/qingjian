@@ -54,3 +54,22 @@ fn open_session_carries_protocol_and_close_is_replyless() {
         Some(response)
     );
 }
+
+#[test]
+fn linux_display_identity_round_trips_without_changing_shared_protocol() {
+    let identity = qingjian_linux_server::protocol::DisplayIdentity {
+        generation: 7,
+        context: "001122".into(),
+        revision: 13,
+    };
+    let ack = qingjian_linux_server::protocol::DisplayAcknowledged {
+        session: SessionId(2),
+        identity: identity.clone(),
+        senses: vec![(0, 1), (3, 0)],
+    };
+    let value = serde_json::to_value(&ack).unwrap();
+    let decoded: qingjian_linux_server::protocol::DisplayAcknowledged =
+        serde_json::from_value(value).unwrap();
+    assert_eq!(decoded.identity, identity);
+    assert_eq!(decoded.senses, vec![(0, 1), (3, 0)]);
+}

@@ -11,6 +11,8 @@ public:
     bool open();
     bool send(const nlohmann::json &message, nlohmann::json *response = nullptr);
     bool connected() const { return fd_ >= 0; }
+    /// 只供事件循环观察断线；收发仍统一通过 send。
+    int fd() const { return fd_; }
     void close();
 private:
     /// 当前连接；-1 表示未连接。

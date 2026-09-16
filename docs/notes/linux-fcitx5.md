@@ -4,6 +4,21 @@
 
 ## 构建与安装
 
+安装脚本同时构建 `qingjian-render-ffi` 并静态链接。普通构建关闭未经桌面验收的 XCB 原型；所有配置模式均可回退默认面板。直接 CMake 默认不链接 FFI，仍可独立运行原面板和生命周期测试。编译/链接错误会使构建失败，运行时绘制失败才执行回退。
+
+实验构建可使用：
+
+```bash
+cargo build -p qingjian-render-ffi --locked
+cmake -S apps/linux/fcitx5 -B target/fcitx5-ui \
+  -DQINGJIAN_RENDER_FFI=ON -DQINGJIAN_EXPERIMENTAL_X11=ON \
+  -DQINGJIAN_RENDER_FFI_LIB="$PWD/target/debug/libqingjian_render_ffi.a"
+cmake --build target/fcitx5-ui --parallel 2
+ctest --test-dir target/fcitx5-ui --output-on-failure
+```
+
+实验 XCB 额外需要 `libxcb1-dev libxcb-render0-dev libxcb-randr0-dev`；字体建议 `fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji`。C ABI 输入最大 256 KiB，返回预乘 RGBA8；配套 result/renderer destroy 管理 Rust 内存，静态库未用部分通过 section GC 丢弃，内部 Rust 符号不向 Fcitx 导出。其配置、协议及未验收边界见 [支持矩阵](linux-ui-support.md)。
+
 ```bash
 sudo apt install libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev cmake g++ pkg-config
 cargo test -p qingjian-linux-server --locked
@@ -13,7 +28,7 @@ ctest --test-dir build/fcitx5 --output-on-failure
 apps/linux/scripts/install.sh
 ```
 
-插件要求 Fcitx5 >= 5.1.9 的候选 comment API；C++20 兼容 Fcitx5 5.1.19 头文件。安装脚本默认 release，支持 `--debug`、`--prefix /绝对目录` 和 `--sample`。后者跳过产品生成数据复制，保留样例。默认路径是 `~/.local/{bin,lib/fcitx5,share}`，安装后手动启动服务并在 Fcitx 配置工具中添加青简：
+插件要求 Fcitx5 >= 5.1.9 的候选 comment API；C++20 兼容 Fcitx5 5.1.19 头文件。安装脚本默认 release，支持 `--debug`、`--prefix /绝对目录` 、`--sample` 和 `--experimental-x11`。`--sample` 跳过产品生成数据复制，保留样例；`--experimental-x11` 显式构建实验 XCB 后端。支持 `CARGO_TARGET_DIR` 指定 Rust 产物目录，`CMAKE_BUILD_PARALLEL_LEVEL` 控制 C++ 并行数（默认 4）。默认路径是 `~/.local/{bin,lib/fcitx5,share}`，安装后手动启动服务并在 Fcitx 配置工具中添加青简：
 
 ```bash
 systemctl --user daemon-reload

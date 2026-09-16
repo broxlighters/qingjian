@@ -23,6 +23,7 @@ README.md 只介绍项目，所有技术内容放在这里，分四类：前三�
 | [plan/todo.md](plan/todo.md) | 待办清单，按「从自用到能给别人用」排 |
 | [notes/crate-notes.md](notes/crate-notes.md) | 各 crate / app / tool 的实现要点：入口类型、数据文件、常数、生成命令 |
 | [notes/linux-fcitx5.md](notes/linux-fcitx5.md) | Linux Fcitx5 构建、安装、协议、数据目录与桌面验收范围 |
+| [notes/linux-ui-support.md](notes/linux-ui-support.md) | Linux 自绘支持矩阵、验证记录和待验收场景 |
 | [notes/fcitx5-review.md](notes/fcitx5-review.md) | Fcitx5 实现的补充复核、已修问题与正式复审状态 |
 | [notes/performance.md](notes/performance.md) | 历次性能优化：起因、定位方法、改法、数字前后对比与经验 |
 | [notes/release.md](notes/release.md) | 发版流程：CHANGELOG、标签触发的 CI 打包、产品数据包、签名公证的 Secrets、官网用的 `releases.json` |

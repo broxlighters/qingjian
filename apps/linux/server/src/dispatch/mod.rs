@@ -2,6 +2,7 @@
 
 mod composed;
 mod config;
+mod display;
 mod key;
 mod message;
 mod session;

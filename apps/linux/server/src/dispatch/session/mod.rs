@@ -46,6 +46,10 @@ impl Router {
             return;
         }
         info.private = private;
+        info.display_frame = None;
+        if let Some(identity) = &mut info.display_identity {
+            identity.revision += 1;
+        }
         info.composed = None;
         info.highlight = 0;
         info.navigated = false;

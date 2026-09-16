@@ -33,7 +33,11 @@ impl Router {
                     Effect::Passthrough => (None, KeyOutcome::Passthrough),
                 };
                 let frame = self.current_frame();
-                self.engine.note_displayed(frame.candidates.items.iter());
+                if self.sessions[&session].display_identity.is_none() {
+                    self.engine.note_displayed(frame.candidates.items.iter());
+                } else {
+                    self.engine.note_displayed(std::iter::empty());
+                }
                 Some(ServerMessage::KeyResult {
                     session,
                     outcome,

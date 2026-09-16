@@ -9,26 +9,98 @@
 #include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/text.h>
+#include <fcitx/userinterfacemanager.h>
+#include <fcitx-utils/event.h>
 #include <fcitx-utils/log.h>
+#include <array>
+#include <iomanip>
+#include <sstream>
+#include <stdexcept>
+#include <sys/socket.h>
+#include <cerrno>
 
 namespace fcitx {
+namespace {
+qingjian::panel::RendererMode rendererMode(const std::string &value) {
+    if (value == "qingjian") return qingjian::panel::RendererMode::Qingjian;
+    if (value == "auto") return qingjian::panel::RendererMode::Auto;
+    return qingjian::panel::RendererMode::Fcitx;
+}
+std::string contextIdentity(const InputContext *context) {
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+    for (auto byte : context->uuid()) out << std::setw(2) << static_cast<unsigned>(byte);
+    return out.str();
+}
+}
 QingjianEngine::QingjianEngine(AddonManager *manager)
-    : sessions_([](InputContext &) { return new qingjian::Session; }) {
+    : instance_(manager->instance()), sessions_([](InputContext &) { return new qingjian::Session; }) {
+    qingjian::panel::prepareRenderer();
     manager->instance()->inputContextManager().registerProperty("qingjian-session", &sessions_);
+#if defined(QJ_EXPERIMENTAL_X11)
+    appearance_ = std::make_unique<qingjian::panel::Appearance>(instance_->eventLoop(), [this] {
+        instance_->inputContextManager().foreach([this](InputContext *context) {
+            auto *session = context->propertyFor(&sessions_);
+            if (session->opened && context->hasFocus() && session->panel.active() &&
+                !session->lastFrame.is_null() && session->lastFrame.value("theme", "system") == "system") {
+                auto frame = session->lastFrame;
+                try { render(context, frame); }
+                catch (const std::exception &) { clear(context); }
+            }
+            return true;
+        });
+    });
+#endif
     capabilityWatcher_ = manager->instance()->watchEvent(EventType::InputContextCapabilityChanged, EventWatcherPhase::PreInputMethod, [this](Event &event) {
         auto *context = static_cast<InputContextEvent &>(event).inputContext();
         if (context->propertyFor(&sessions_)->opened) syncPrivacy(context);
     });
+    cursorWatcher_ = instance_->watchEvent(EventType::InputContextCursorRectChanged, EventWatcherPhase::PostInputMethod, [this](Event &event) {
+        auto *context = static_cast<InputContextEvent &>(event).inputContext();
+        auto *session = context->propertyFor(&sessions_);
+        if (session->opened && context->hasFocus() && session->panel.active() && !session->lastFrame.is_null()) {
+            auto frame = session->lastFrame;
+            try { render(context, frame); }
+            catch (const std::exception &) { clear(context); }
+        }
+    });
+    virtualKeyboardWatcher_ = instance_->watchEvent(EventType::VirtualKeyboardVisibilityChanged, EventWatcherPhase::PostInputMethod, [this](Event &) {
+        const bool visible = instance_->userInterfaceManager().isVirtualKeyboardVisible();
+        instance_->inputContextManager().foreach([this, visible](InputContext *context) {
+            auto *session = context->propertyFor(&sessions_);
+            if (!visible) {
+                if (session->opened && context->hasFocus() && !session->lastFrame.is_null()) {
+                    auto frame = session->lastFrame;
+                    try { render(context, frame); }
+                    catch (const std::exception &) { clear(context); }
+                }
+                return true;
+            }
+            if (!session->panel.active()) return true;
+            session->panel.hide(context);
+            if (session->displayReporting && !session->privateInput) {
+                if (!session->connection.send({{"DisplayAcknowledged", {{"session", session->id}, {"identity", session->displayIdentity}, {"senses", nlohmann::json::array()}}}})) disconnect(context);
+            }
+            context->updateUserInterface(UserInterfaceComponent::InputPanel);
+            return true;
+        });
+    });
 }
 void QingjianEngine::clear(InputContext *context) {
+    auto *session = context->propertyFor(&sessions_);
+    session->panel.invalidate(context);
+    session->lastFrame = nullptr;
     context->inputPanel().reset();
     context->updatePreedit();
     context->updateUserInterface(UserInterfaceComponent::InputPanel);
 }
 void QingjianEngine::disconnect(InputContext *context) {
     auto *session = context->propertyFor(&sessions_);
+    session->socketWatcher.reset();
     session->connection.close();
     session->opened = false;
+    session->displayReporting = false;
+    session->displayIdentity = nullptr;
     session->privateInput = true;
     session->clientPreedit = false;
     session->shiftPending = false;
@@ -91,6 +163,7 @@ void QingjianEngine::deactivate(const InputMethodEntry &entry, InputContextEvent
         disconnect(context);
         return;
     }
+    session->panel.hide(context);
     // FocusOut 的 clientPreedit 已由 Fcitx（或 ClientUnfocusCommit 客户端）提交。
     // 只有 panel.preedit 的上下文没有这层兜底，需交付 Server 的原样组句。
     // 按最近一帧的去向判断，避免框架处理面板后的状态影响提交判定。
@@ -126,12 +199,36 @@ bool QingjianEngine::process(InputContext *context, const Key &key) {
     try {
         if (!session->opened) {
             nlohmann::json response;
-            if (!session->connection.open() || !session->connection.send({{"OpenSession", {{"session", session->id}, {"app", context->program()}, {"protocol", 4}}}}, &response)
+            if (!session->connection.open()) {
+                session->connection.close(); clear(context); return false;
+            }
+            ++session->generation;
+            if (!session->connection.send({{"OpenSession", {{"session", session->id}, {"app", context->program()}, {"protocol", 4}}}}, &response)
                 || !response.contains("Update") || response.at("Update").at("session") != session->id) {
                 session->connection.close(); clear(context); return false;
             }
             session->opened = true;
             session->privateInput = true;
+            session->preeditMode = "legacy";
+            session->panel.configure(qingjian::panel::RendererMode::Fcitx, &instance_->eventLoop());
+            const auto &update = response.at("Update");
+            // 配置和曝光协商不依赖窗口能力；默认 Fcitx 也需要 preedit 配置。
+            if (update.contains("linux_ui") && update.at("linux_ui").value("version", 0) == 1) {
+                nlohmann::json helloResponse;
+                if (!session->connection.send({{"LinuxHello", {{"version", 1}, {"generation", session->generation}, {"context", contextIdentity(context)}}}}, &helloResponse)
+                    || helloResponse.at("LinuxHello").value("version", 0) != 1) throw std::runtime_error("linux ui handshake");
+                const auto &settings = helloResponse.at("LinuxHello");
+                session->displayReporting = true;
+                session->preeditMode = settings.value("preedit", "both");
+                session->panel.configure(rendererMode(settings.value("renderer", "fcitx")), &instance_->eventLoop());
+            }
+            session->socketWatcher = instance_->eventLoop().addIOEvent(session->connection.fd(), IOEventFlag::In,
+                [this, context](EventSourceIO *, int fd, IOEventFlags) {
+                    char byte;
+                    auto count = recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
+                    if (count >= 0 || (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) disconnect(context);
+                    return true;
+                });
         }
         if (!syncPrivacy(context)) return false;
         nlohmann::json response;
@@ -140,7 +237,15 @@ bool QingjianEngine::process(InputContext *context, const Key &key) {
         if (result.at("session") != session->id) throw std::runtime_error("session mismatch");
         const std::string outcome = result.at("outcome");
         if (outcome != "Consumed" && outcome != "Passthrough") throw std::runtime_error("bad outcome");
-        render(context, result.at("frame"));
+        if (session->displayReporting) {
+            const auto &identity = result.at("identity");
+            if (identity.at("generation") != session->generation || identity.at("context") != contextIdentity(context)
+                || !identity.at("revision").is_number_unsigned()) throw std::runtime_error("display identity");
+            session->displayIdentity = identity;
+        }
+        // 展示故障不改变 Server 已接受的按键或上屏结果。
+        try { render(context, result.at("frame")); }
+        catch (const std::exception &) { clear(context); }
         if (result.at("commit").is_string()) context->commitString(result.at("commit").get<std::string>());
         return outcome == "Consumed";
     } catch (const std::exception &) {
@@ -148,6 +253,7 @@ bool QingjianEngine::process(InputContext *context, const Key &key) {
     }
 }
 void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) {
+    const auto ready = std::chrono::steady_clock::now();
     auto *session = context->propertyFor(&sessions_);
     auto revision = ++session->revision;
     Text preedit;
@@ -159,18 +265,31 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
     while (bytes < raw.size() && (static_cast<unsigned char>(raw[bytes]) & 0xc0) == 0x80) ++bytes;
     preedit.setCursor(static_cast<int>(bytes));
     auto &panel = context->inputPanel();
+    session->panel.hide(context);
     panel.reset();
-    if (context->capabilityFlags().test(CapabilityFlag::Preedit)) panel.setClientPreedit(preedit);
-    else panel.setPreedit(preedit);
-    session->clientPreedit = context->capabilityFlags().test(CapabilityFlag::Preedit);
+    // 先对原 UI 提交空帧并立即 flush，再安装自定义回调，避免默认窗口残留。
+    if (session->panel.eligible(context)) {
+        context->updateUserInterface(UserInterfaceComponent::InputPanel);
+        instance_->userInterfaceManager().flush();
+    }
+    const bool inlinePreedit = context->capabilityFlags().test(CapabilityFlag::Preedit) && session->preeditMode != "window";
+    const bool windowPreedit = session->preeditMode == "both" || session->preeditMode == "window" || !inlinePreedit;
+    if (inlinePreedit) panel.setClientPreedit(preedit);
+    if (windowPreedit) panel.setPreedit(preedit);
+    session->clientPreedit = inlinePreedit;
+    session->lastFrame = session->privateInput ? nlohmann::json(nullptr) : frame;
     const auto &items = frame.at("candidates").at("items");
     if (!items.empty()) {
-        auto list = std::make_unique<qingjian::List>(frame.at("page").get<int>(), frame.at("page_count").get<int>(), [this, context, session, revision](bool next) {
-            if (session->revision == revision) process(context, Key(next ? FcitxKey_Page_Down : FcitxKey_Page_Up));
+        auto watched = context->watch();
+        auto list = std::make_unique<qingjian::List>(frame.at("page").get<int>(), frame.at("page_count").get<int>(), [this, watched, revision](bool next) {
+            auto *ic = watched.get();
+            if (!ic) return;
+            auto *current = ic->propertyFor(&sessions_);
+            if (current->opened && current->revision == revision && ic->hasFocus()) process(ic, Key(next ? FcitxKey_Page_Down : FcitxKey_Page_Up));
         });
         list->setPageSize(9);
         list->setLabels({"1", "2", "3", "4", "5", "6", "7", "8", "9"});
-        list->setLayoutHint(CandidateLayoutHint::Horizontal);
+        list->setLayoutHint(frame.value("layout", "horizontal") == "vertical" ? CandidateLayoutHint::Vertical : CandidateLayoutHint::Horizontal);
         size_t index = 0;
         for (const auto &item : items) {
             std::string annotation;
@@ -180,9 +299,10 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
                 annotation = sense.at("text").get<std::string>();
                 if (sense.value("fresh", false)) annotation += " · 生";
             }
-            list->append(std::make_unique<qingjian::Word>(item.at("text").get<std::string>(), annotation, [this, index, revision](InputContext *ic) {
+            list->append(std::make_unique<qingjian::Word>(item.at("text").get<std::string>(), annotation, [this, watched, index, revision](InputContext *ic) {
+                if (!ic || ic != watched.get()) return;
                 auto *current = ic->propertyFor(&sessions_);
-                if (current->revision == revision) process(ic, Key(static_cast<KeySym>(FcitxKey_1 + index)));
+                if (current->opened && current->revision == revision && ic->hasFocus()) process(ic, Key(static_cast<KeySym>(FcitxKey_1 + index)));
             }));
             ++index;
         }
@@ -191,6 +311,36 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
         panel.setCandidateList(std::move(list));
     }
     if (frame.contains("notice") && frame["notice"].is_string()) panel.setAuxDown(Text(frame["notice"].get<std::string>()));
+    bool custom = false;
+    if (session->displayReporting && session->displayIdentity.is_object()) {
+        const auto identity = session->displayIdentity;
+        auto acknowledge = [this, context, session, revision, identity](const nlohmann::json &senses) {
+            if (!session->opened || session->revision != revision || !context->hasFocus() || session->privateInput) return;
+            // 同一帧的缩放/回退可能改变可见义项；Server 替换集合，上屏时才计数。
+            if (!session->connection.send({{"DisplayAcknowledged", {{"session", session->id}, {"identity", identity}, {"senses", senses}}}})) disconnect(context);
+        };
+        auto defaultSenses = nlohmann::json::array();
+        for (size_t row = 0; row < items.size(); ++row) {
+            const auto &item = items.at(row);
+            if (!item.at("text").get<std::string>().empty() && item.at("translation").is_object()
+                && !item.at("translation").at("senses").empty()) defaultSenses.push_back({row, 0});
+        }
+        auto displayFrame = frame;
+        if (!windowPreedit) { displayFrame["preedit"] = nlohmann::json::array(); displayFrame["cursor"] = 0; }
+        custom = session->panel.renderFrame(context, displayFrame,
+            {identity.at("generation"), identity.at("context"), identity.at("revision")},
+            [context, session, revision] { return session->opened && session->revision == revision && context->hasFocus() && !session->privateInput; },
+            [this, context, session, revision](int value) {
+                if (!session->opened || session->revision != revision || !context->hasFocus()) return;
+                process(context, Key(value == -1 ? FcitxKey_Page_Up : value == -2 ? FcitxKey_Page_Down : static_cast<KeySym>(FcitxKey_1 + value)));
+            }, acknowledge,
+            [context, session, revision, acknowledge, defaultSenses] {
+                if (!session->opened || session->revision != revision || !context->hasFocus()) return;
+                context->updateUserInterface(UserInterfaceComponent::InputPanel);
+                acknowledge(defaultSenses);
+            }, ready, appearance_ && appearance_->dark());
+        if (!custom) acknowledge(defaultSenses);
+    }
     context->updatePreedit();
     context->updateUserInterface(UserInterfaceComponent::InputPanel);
 }

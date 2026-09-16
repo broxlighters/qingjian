@@ -15,7 +15,7 @@ use std::thread;
 use std::time::Duration;
 
 /// 主线程请求队列；容量有限，损坏客户端不能无限占用内存。
-type Request = (ClientMessage, mpsc::Sender<Option<ServerMessage>>);
+type Request = (serde_json::Value, mpsc::Sender<Option<serde_json::Value>>);
 static STOP: AtomicBool = AtomicBool::new(false);
 static CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 /// 主线程在下一次空闲节拍退出，落盘由 Router::drop 完成。
@@ -87,6 +87,7 @@ pub fn bind_socket(path: &Path) -> io::Result<UnixListener> {
 
 pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<()> {
     let listener = bind_socket(path.as_ref())?;
+    let settings = router.display_settings();
     let (sender, receiver) = mpsc::sync_channel::<Request>(128);
     thread::spawn(move || {
         for stream in listener.incoming() {
@@ -97,8 +98,9 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
                         continue;
                     }
                     let sender = sender.clone();
+                    let settings = settings.clone();
                     thread::spawn(move || {
-                        serve_connection(stream, sender);
+                        serve_connection(stream, sender, settings);
                         CONNECTIONS.fetch_sub(1, Ordering::Relaxed);
                     });
                 }
@@ -112,7 +114,7 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
     while !STOP.load(Ordering::Relaxed) {
         match receiver.recv_timeout(Duration::from_secs(1)) {
             Ok((message, reply)) => {
-                let _ = reply.send(router.handle(message));
+                let _ = reply.send(router.handle_linux(message));
             }
             Err(mpsc::RecvTimeoutError::Timeout) => router.tick(),
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
@@ -124,11 +126,26 @@ pub fn serve_socket(path: impl AsRef<Path>, router: &mut Router) -> io::Result<(
 
 fn dispatch(sender: &SyncSender<Request>, message: ClientMessage) -> Option<ServerMessage> {
     let (reply, receiver) = mpsc::channel();
+    sender
+        .send((serde_json::to_value(message).ok()?, reply))
+        .ok()?;
+    serde_json::from_value(receiver.recv().ok().flatten()?).ok()
+}
+
+fn dispatch_json(
+    sender: &SyncSender<Request>,
+    message: serde_json::Value,
+) -> Option<serde_json::Value> {
+    let (reply, receiver) = mpsc::channel();
     sender.send((message, reply)).ok()?;
     receiver.recv().ok().flatten()
 }
 
-fn serve_connection(mut stream: UnixStream, sender: SyncSender<Request>) {
+fn serve_connection(
+    mut stream: UnixStream,
+    sender: SyncSender<Request>,
+    settings: serde_json::Value,
+) {
     let mut credentials = libc::ucred {
         pid: 0,
         uid: 0,
@@ -151,7 +168,66 @@ fn serve_connection(mut stream: UnixStream, sender: SyncSender<Request>) {
     // 阻塞写上限：不读取答复的客户端不能无限占住线程。
     let _ = stream.set_write_timeout(Some(Duration::from_secs(1)));
     let mut sessions = HashMap::<SessionId, SessionId>::new();
-    while let Ok(Some(message)) = read_message::<_, ClientMessage>(&mut stream) {
+    let mut hello = None::<crate::protocol::DisplayIdentity>;
+    while let Ok(Some(value)) = read_message::<_, serde_json::Value>(&mut stream) {
+        if let Some(request) = value.get("LinuxHello") {
+            if hello.is_some()
+                || request.get("version").and_then(|v| v.as_u64())
+                    != Some(u64::from(crate::protocol::LINUX_UI_PROTOCOL))
+            {
+                break;
+            }
+            let Some(context) = request
+                .get("context")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty() && s.len() <= 64)
+            else {
+                break;
+            };
+            let Some(generation) = request.get("generation").and_then(|v| v.as_u64()) else {
+                break;
+            };
+            hello = Some(crate::protocol::DisplayIdentity {
+                generation,
+                context: context.into(),
+                revision: 0,
+            });
+            for global in sessions.values() {
+                dispatch_json(
+                    &sender,
+                    serde_json::json!({"DisplayReporting": {"session": global, "identity": hello}}),
+                );
+            }
+            if write_message(&mut stream, &serde_json::json!({"LinuxHello": settings})).is_err() {
+                break;
+            }
+            continue;
+        }
+        if let Some(request) = value.get("DisplayAcknowledged") {
+            let Ok(mut ack) =
+                serde_json::from_value::<crate::protocol::DisplayAcknowledged>(request.clone())
+            else {
+                break;
+            };
+            let Some(identity) = &hello else {
+                break;
+            };
+            let Some(global) = sessions.get(&ack.session) else {
+                break;
+            };
+            if ack.identity.generation != identity.generation
+                || ack.identity.context != identity.context
+                || ack.senses.len() > 128
+            {
+                break;
+            }
+            ack.session = *global;
+            dispatch_json(&sender, serde_json::json!({"DisplayAcknowledged": ack}));
+            continue;
+        }
+        let Ok(message) = serde_json::from_value::<ClientMessage>(value) else {
+            break;
+        };
         let response = match message {
             ClientMessage::OpenSession {
                 session,
@@ -174,37 +250,40 @@ fn serve_connection(mut stream: UnixStream, sender: SyncSender<Request>) {
                         protocol,
                     },
                 );
-                Some(ServerMessage::Update {
-                    session,
-                    frame: Frame::default(),
-                })
+                if let Some(identity) = &hello {
+                    dispatch_json(
+                        &sender,
+                        serde_json::json!({"DisplayReporting": {"session": global, "identity": identity}}),
+                    );
+                }
+                // 先保持旧 OpenSession 握手；新插件看到明确版本后才发 LinuxHello。
+                Some(
+                    serde_json::json!({"Update": {"session": session, "frame": Frame::default(), "linux_ui": settings}}),
+                )
             }
             ClientMessage::Key { session, event } => {
                 let Some(global) = sessions.get(&session) else {
                     break;
                 };
-                dispatch(
+                dispatch_json(
                     &sender,
-                    ClientMessage::Key {
-                        session: *global,
-                        event,
-                    },
+                    serde_json::json!({"Key": {"session": global, "event": event}}),
                 )
-                .map(|reply| localize(reply, session))
+                .map(|reply| localize_json(reply, session))
             }
             ClientMessage::Poll { session } => {
                 let Some(global) = sessions.get(&session) else {
                     break;
                 };
-                dispatch(&sender, ClientMessage::Poll { session: *global })
-                    .map(|reply| localize(reply, session))
+                dispatch_json(&sender, serde_json::json!({"Poll": {"session": global}}))
+                    .map(|reply| localize_json(reply, session))
             }
             ClientMessage::Commit { session } => {
                 let Some(global) = sessions.get(&session) else {
                     break;
                 };
-                dispatch(&sender, ClientMessage::Commit { session: *global })
-                    .map(|reply| localize(reply, session))
+                dispatch_json(&sender, serde_json::json!({"Commit": {"session": global}}))
+                    .map(|reply| localize_json(reply, session))
             }
             ClientMessage::Privacy { session, private } => {
                 let Some(global) = sessions.get(&session) else {
@@ -239,13 +318,9 @@ fn serve_connection(mut stream: UnixStream, sender: SyncSender<Request>) {
     }
 }
 
-fn localize(mut response: ServerMessage, local: SessionId) -> ServerMessage {
-    match &mut response {
-        ServerMessage::KeyResult { session, .. }
-        | ServerMessage::Update { session, .. }
-        | ServerMessage::Committed { session, .. }
-        | ServerMessage::ModeSync { session, .. }
-        | ServerMessage::RequestSelection { session, .. } => *session = local,
+fn localize_json(mut response: serde_json::Value, local: SessionId) -> serde_json::Value {
+    if let Some(body) = response.as_object_mut().and_then(|o| o.values_mut().next()) {
+        body["session"] = serde_json::json!(local);
     }
     response
 }

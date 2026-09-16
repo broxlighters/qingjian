@@ -4,6 +4,7 @@ mod dictionaries;
 mod general;
 mod key_combo;
 mod layout_mode;
+mod linux_ui;
 mod log_level;
 mod model;
 mod modifiers;
@@ -30,6 +31,7 @@ pub use dictionaries::{DEFAULT_DOMAINS, DictionariesConfig};
 pub use general::{DEFAULT_PAGE_KEYS, GeneralConfig, MAX_PAGE_SIZE, PAGE_KEY_OPTIONS};
 pub use key_combo::KeyCombo;
 pub use layout_mode::LayoutMode;
+pub use linux_ui::{LinuxRenderer, LinuxUiConfig};
 pub use log_level::LogLevel;
 pub use model::LocalModelConfig;
 pub use modifiers::Modifiers;
@@ -46,6 +48,9 @@ pub use theme_mode::ThemeMode;
 pub struct Config {
     /// 常规：学习语言、每页候选数、翻页键、外观。
     pub general: GeneralConfig,
+
+    /// Linux 候选面板；其他平台忽略。
+    pub linux_ui: LinuxUiConfig,
 
     /// 自定义短语；保存和读取均检查位置冲突。
     #[serde(deserialize_with = "deserialize_phrases")]
@@ -152,7 +157,7 @@ delete_candidate = "shift"
 /// 首次运行写出的模板：默认值全部列出并注释，用户改一处即可。`[shortcut]` 的修饰键与 `[apps]` 分平台，
 /// 见 [`template_shortcut_keys!`] / [`template_apps!`]。
 pub const TEMPLATE: &str = concat!(
-    r#"# 青简输入法配置。保存后自动生效；也可以在菜单栏的输入法菜单里改。
+    r#"# 青简输入法配置。Linux 保存后重启服务生效；macOS / Windows 按各平台设置页说明生效。
 
 [general]
 # 学习语言（en 英语 / ja 日语 / es 西班牙语）：候选旁显示哪种语言的译文，要有对应的释义表才生效
@@ -210,6 +215,10 @@ question_mark = false
 "#,
     template_shortcut_keys!(),
     r#"
+[linux_ui]
+# Linux 候选窗口：fcitx 默认面板 / auto 仅已验收场景 / qingjian 优先请求自绘，不可用时回退
+renderer = "fcitx"
+
 [fuzzy]
 # 模糊音：开了之后敲 zi 也出 zhi 的字、敲 lan 也出 nan 的字。默认全关，按需打开。
 z_zh = false

@@ -1,4 +1,4 @@
-//! 长度前缀显式使用小端；非阻塞 I/O 共享 200ms 截止时间，不阻塞 Fcitx 事件循环。
+//! 长度前缀显式使用小端；非阻塞 fd 内部同步 poll，共享 200ms 截止时间，耗时需与 UI 分开。
 #include "connection.h"
 #include <array>
 #include <chrono>

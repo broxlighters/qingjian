@@ -1,12 +1,18 @@
 //! Linux 首版按键与候选配置。
 use qingjian_platform::protocol::KeyModifiers;
-use qingjian_platform::{AppsConfig, Config, LayoutMode, ThemeMode};
+use qingjian_platform::{AppsConfig, Config, LayoutMode, LinuxRenderer, PreeditMode, ThemeMode};
 
 /// Router 要用的配置项，与 macOS 壳的 `Host` 字段对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouterConfig {
     /// 每页候选数（`[general] page_size`）。
     pub page_size: usize,
+
+    /// Linux 独立显示初始化信息。
+    pub renderer: LinuxRenderer,
+
+    /// 应用与窗口拼音显示位置。
+    pub preedit: PreeditMode,
 
     /// 云端候选在第一页预留的格数（`[predict] slots`）。
     pub cloud_slots: usize,
@@ -50,8 +56,10 @@ impl From<&Config> for RouterConfig {
     fn from(config: &Config) -> Self {
         Self {
             page_size: config.general.page_size(),
+            renderer: config.linux_ui.renderer,
+            preedit: config.general.preedit,
             cloud_slots: 0,
-            layout: LayoutMode::Horizontal,
+            layout: config.general.layout,
             theme: config.general.theme,
             page_keys: config.general.page_keys(),
             english_candidates: config.general.english_candidates,

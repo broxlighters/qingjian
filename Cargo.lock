@@ -2441,6 +2441,8 @@ dependencies = [
  "qingjian-lm",
  "qingjian-platform",
  "qingjian-translate",
+ "serde",
+ "serde_json",
  "thiserror 2.0.20",
  "tracing",
  "tracing-appender",
@@ -2541,6 +2543,15 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "windows",
+]
+
+[[package]]
+name = "qingjian-render-ffi"
+version = "0.1.0-dev"
+dependencies = [
+ "qingjian-platform",
+ "qingjian-render",
+ "serde_json",
 ]
 
 [[package]]

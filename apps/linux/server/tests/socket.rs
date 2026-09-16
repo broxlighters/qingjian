@@ -160,3 +160,68 @@ fn socket_path_does_not_replace_regular_files_or_symlinks() {
     assert!(bind_socket(&path).is_err());
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn linux_ui_negotiates_after_legacy_open_and_binds_ack_to_connection() {
+    use serde_json::{Value, json};
+    let directory = std::env::temp_dir().join(format!("qingjian-ui-socket-{}", std::process::id()));
+    let mut server = Server::start(directory.clone());
+    let mut stream = server.connect();
+    write_message(
+        &mut stream,
+        &ClientMessage::OpenSession {
+            session: SessionId(1),
+            app: None,
+            protocol: PROTOCOL_VERSION,
+        },
+    )
+    .unwrap();
+    let opened = read_message::<_, Value>(&mut stream).unwrap().unwrap();
+    assert_eq!(opened["Update"]["linux_ui"]["version"], 1);
+    assert_eq!(opened["Update"]["linux_ui"]["renderer"], "fcitx");
+    write_message(
+        &mut stream,
+        &json!({"LinuxHello": {"version": 1, "generation": 9, "context": "test-context"}}),
+    )
+    .unwrap();
+    assert_eq!(
+        read_message::<_, Value>(&mut stream).unwrap().unwrap()["LinuxHello"]["version"],
+        1
+    );
+    write_message(
+        &mut stream,
+        &ClientMessage::Privacy {
+            session: SessionId(1),
+            private: false,
+        },
+    )
+    .unwrap();
+    write_message(
+        &mut stream,
+        &ClientMessage::Key {
+            session: SessionId(1),
+            event: KeyEvent::new(78, Some('n'), KeyModifiers::default()),
+        },
+    )
+    .unwrap();
+    let response = read_message::<_, Value>(&mut stream).unwrap().unwrap();
+    let mut identity = response["KeyResult"]["identity"].clone();
+    assert_eq!(identity["generation"], 9);
+    assert_eq!(identity["context"], "test-context");
+    assert_eq!(response["KeyResult"]["session"], 1);
+    write_message(
+        &mut stream,
+        &json!({"DisplayAcknowledged": {"session": 1, "identity": identity, "senses": []}}),
+    )
+    .unwrap();
+    assert_eq!(commit(&mut stream).as_deref(), Some("n"));
+    identity["generation"] = json!(8);
+    write_message(
+        &mut stream,
+        &json!({"DisplayAcknowledged": {"session": 1, "identity": identity, "senses": []}}),
+    )
+    .unwrap();
+    assert_eq!(read_message::<_, Value>(&mut stream).unwrap(), None);
+    drop(server);
+    std::fs::remove_dir_all(directory).unwrap();
+}

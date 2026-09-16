@@ -1,6 +1,7 @@
 //! Fcitx5 壳：上下文属性、输入事件与候选 UI。
 #pragma once
 #include "session.h"
+#include "panel/appearance.h"
 #include <fcitx/addonfactory.h>
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputcontextproperty.h>
@@ -19,9 +20,17 @@ private:
     bool syncPrivacy(InputContext *context);
     bool commitRaw(InputContext *context, bool deliver);
     void render(InputContext *context, const nlohmann::json &frame);
+    /// Fcitx 实例，负责 UI flush 和窗口事件。
+    Instance *instance_;
     /// 不复制组句；Fcitx 自动随 InputContext 回收属性。
     FactoryFor<qingjian::Session> sessions_;
+    /// 桌面主题异步更新，只影响 system 外观的自绘帧。
+    std::unique_ptr<qingjian::panel::Appearance> appearance_;
     /// 能力变化时立即清理面板，避免旧私密 preedit 被 Fcitx 失焦自动提交。
     std::unique_ptr<HandlerTableEntry<EventHandler>> capabilityWatcher_;
+    /// 光标移动时重新提交当前有效展示帧。
+    std::unique_ptr<HandlerTableEntry<EventHandler>> cursorWatcher_;
+    /// 虚拟键盘优先接管时同步撤下自绘窗口。
+    std::unique_ptr<HandlerTableEntry<EventHandler>> virtualKeyboardWatcher_;
 };
 }

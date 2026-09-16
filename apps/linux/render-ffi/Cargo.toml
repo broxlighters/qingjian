@@ -1,0 +1,17 @@
+[package]
+name = "qingjian-render-ffi"
+version = "0.1.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+qingjian-render.workspace = true
+qingjian-platform.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

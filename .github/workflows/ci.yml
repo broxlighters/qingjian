@@ -37,7 +37,7 @@ jobs:
       - name: Install Fcitx5 build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev
+          sudo apt-get install -y cmake g++ dbus-daemon libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev libxcb1-dev libxcb-render0-dev libxcb-randr0-dev
 
       - name: Format
         run: cargo fmt --all --check
@@ -53,6 +53,13 @@ jobs:
           cmake -S apps/linux/fcitx5 -B target/fcitx5 -DCMAKE_BUILD_TYPE=Debug
           cmake --build target/fcitx5 --parallel 2
           ctest --test-dir target/fcitx5 --output-on-failure
+
+      - name: Build render-ffi and optional addon path
+        run: |
+          cargo build -p qingjian-render-ffi --release --locked
+          cmake -S apps/linux/fcitx5 -B target/fcitx5-ffi -DCMAKE_BUILD_TYPE=Debug -DQINGJIAN_RENDER_FFI=ON -DQINGJIAN_RENDER_FFI_LIB=$PWD/target/release/libqingjian_render_ffi.a -DQINGJIAN_RENDER_FFI_INCLUDE=$PWD/apps/linux/render-ffi/include -DQINGJIAN_EXPERIMENTAL_X11=ON
+          cmake --build target/fcitx5-ffi --parallel 2
+          ctest --test-dir target/fcitx5-ffi --output-on-failure
 
   macos:
     runs-on: macos-latest

@@ -3,22 +3,31 @@
 set -euo pipefail
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 install_prefix="$HOME/.local"
+cargo_target_dir=$(realpath -m -- "${CARGO_TARGET_DIR:-$repo_root/target}")
 profile=release
 sample=false
+experimental_x11=OFF
 while (($#)); do
   case "$1" in
     --prefix) install_prefix=${2:?--prefix 需要路径}; shift 2 ;;
     --debug) profile=debug; shift ;;
     --sample) sample=true; shift ;;
+    --experimental-x11) experimental_x11=ON; shift ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
   esac
 done
 [[ "$install_prefix" = /* && "$install_prefix" != / ]] || { echo '安装前缀必须是非根绝对路径' >&2; exit 2; }
-cargo_args=(build --manifest-path "$repo_root/Cargo.toml" -p qingjian-linux-server --locked)
+cargo_args=(build --target-dir "$cargo_target_dir" --manifest-path "$repo_root/Cargo.toml" -p qingjian-linux-server --locked)
 [[ "$profile" != release ]] || cargo_args+=(--release)
 cargo "${cargo_args[@]}"
-cmake -S "$repo_root/apps/linux/fcitx5" -B "$repo_root/build/fcitx5" -DCMAKE_BUILD_TYPE=Release
-cmake --build "$repo_root/build/fcitx5" --parallel
+cargo_ffi_args=(build --target-dir "$cargo_target_dir" --manifest-path "$repo_root/Cargo.toml" -p qingjian-render-ffi --locked)
+[[ "$profile" != release ]] || cargo_ffi_args+=(--release)
+cargo "${cargo_ffi_args[@]}"
+ffi_lib="$cargo_target_dir/$profile/libqingjian_render_ffi.a"
+cmake_args=(-S "$repo_root/apps/linux/fcitx5" -B "$repo_root/build/fcitx5" -DCMAKE_BUILD_TYPE=Release)
+cmake_args+=("-DQINGJIAN_EXPERIMENTAL_X11=$experimental_x11" "-DQINGJIAN_RENDER_FFI=ON" "-DQINGJIAN_RENDER_FFI_LIB=$ffi_lib" "-DQINGJIAN_RENDER_FFI_INCLUDE=$repo_root/apps/linux/render-ffi/include")
+cmake "${cmake_args[@]}"
+cmake --build "$repo_root/build/fcitx5" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-4}"
 ctest --test-dir "$repo_root/build/fcitx5" --output-on-failure
 cmake --install "$repo_root/build/fcitx5" --prefix "$install_prefix"
 # Fcitx 的 addon 搜索路径不含用户 lib；登记实际路径，重启后即可加载。
@@ -29,7 +38,7 @@ addon = prefix / 'share/fcitx5/addon/qingjian.conf'
 library = prefix / 'lib/fcitx5/qingjian'
 addon.write_text(addon.read_text().replace('Library=qingjian\n', f'Library={library}\n'))
 PY
-install -Dm755 "$repo_root/target/$profile/qingjian-linux-server" "$install_prefix/bin/qingjian-linux-server"
+install -Dm755 "$cargo_target_dir/$profile/qingjian-linux-server" "$install_prefix/bin/qingjian-linux-server"
 resource_dir="$install_prefix/share/qingjian/resources"
 mkdir -p "$resource_dir/assets" "$resource_dir/data/generated"
 for component in sample glossary levels emoji; do

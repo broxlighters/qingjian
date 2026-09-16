@@ -5,6 +5,10 @@ use qingjian_core::EngineSession;
 pub(crate) struct SessionInfo {
     /// 应用标识。
     pub(crate) app: Option<String>,
+    /// 新 Linux 客户端已协商显示回报。
+    pub(crate) display_identity: Option<crate::protocol::DisplayIdentity>,
+    /// 待确认的当前候选帧。
+    pub(crate) display_frame: Option<qingjian_platform::protocol::Frame>,
     /// 新会话默认私密，收到能力通知后才允许学习。
     pub(crate) private: bool,
     /// 挂起的 Engine 输入状态。
@@ -20,6 +24,8 @@ impl SessionInfo {
     pub(crate) fn new(app: Option<String>) -> Self {
         Self {
             app,
+            display_identity: None,
+            display_frame: None,
             private: true,
             engine: EngineSession::default(),
             composed: None,
