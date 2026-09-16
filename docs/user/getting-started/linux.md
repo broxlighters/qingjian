@@ -1,6 +1,19 @@
 # 在 Linux 使用青简
 
-Linux 版本正在进行兼容性验证，目前需要从源码安装。首个目标环境为 Ubuntu 26.04 和 Fcitx5 5.1.x，安装步骤见 [构建与安装说明](../../notes/linux-fcitx5.md)。
+Linux 版本正在进行兼容性验证。Debian/Ubuntu 用户可安装对应的 `.deb` 包；从源码安装和打包步骤见 [构建与安装说明](../../notes/linux-fcitx5.md)。首个目标环境为 Ubuntu 26.04 和 Fcitx5 5.1.x。
+
+安装包下载到本地后运行：
+
+```bash
+sudo apt install ./qingjian-fcitx5_<版本>_<架构>.deb
+```
+
+安装后重启 Fcitx5，在 Fcitx5 配置工具中添加「青简」。安装包不会自动启用服务；若服务没有启动，以桌面用户运行：
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now qingjian-linux-server.service
+```
 
 仓库安装脚本默认安装到用户目录。安装后启动青简服务，重启 Fcitx5，在 Fcitx5 配置工具的输入法列表中添加「青简」。候选外观使用 Fcitx5 的主题，候选旁显示一条译词；「生」表示尚不熟悉的译词。
 

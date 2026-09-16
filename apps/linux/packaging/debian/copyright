@@ -1,0 +1,13 @@
+青简代码：Copyright Qingjian contributors
+Source: https://github.com/qingjian-team/qingjian
+License: GPL-3.0-or-later
+完整许可见同目录 LICENSE。构建来源、工作区状态及数据摘要见 build-info.json。
+
+随包数据不以单一许可证覆盖所有来源：
+- 领域词库 THUOCL：MIT，声明见 assets/lexicon/00_meta/THUOCL_LICENSE.txt。
+- 英文词库 ESDB、CSpell、typos：许可与来源见 assets/lexicon/05_english/。
+- 规范汉字、通用词及生成流程：见 assets/lexicon/README.md、QINGJIAN.md。
+- emoji：Unicode-3.0，见 /usr/share/qingjian/resources/assets/emoji/LICENSE-unicode.txt。
+- 释义表：GPL-3.0-or-later，来源见 /usr/share/qingjian/resources/assets/glossary/README.md。
+- 词汇等级：CEFR-J、Octanove、Tanos/elzup，署名和许可见
+  /usr/share/qingjian/resources/assets/levels/README.md。
