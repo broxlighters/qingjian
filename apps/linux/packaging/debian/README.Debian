@@ -3,7 +3,7 @@
 安装：sudo apt install ./qingjian-fcitx5_<版本>_<架构>.deb
 
 按本机动态库自动声明最低依赖；Ubuntu 26.04 上构建的包不保证能在旧发行版运行。
-当前使用 Fcitx 默认候选窗口，实验自绘 X11 后端关闭。
+当前使用 Fcitx 默认候选窗口。
 
 首次启动（以桌面用户运行，不要 sudo）：
   systemctl --user daemon-reload

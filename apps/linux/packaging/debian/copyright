@@ -1,7 +1,8 @@
 青简代码：Copyright Qingjian contributors
 Source: https://github.com/qingjian-team/qingjian
 License: GPL-3.0-or-later
-完整许可见同目录 LICENSE。构建来源、工作区状态及数据摘要见 build-info.json。
+完整许可见同目录 LICENSE。构建来源及版本见
+/usr/share/qingjian/resources/build-info.json，数据摘要见同目录 SHA256SUMS。
 
 随包数据不以单一许可证覆盖所有来源：
 - 领域词库 THUOCL：MIT，声明见 assets/lexicon/00_meta/THUOCL_LICENSE.txt。

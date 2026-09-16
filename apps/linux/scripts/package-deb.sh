@@ -55,7 +55,7 @@ if [[ "$sample" = false ]]; then
     fi
   done
   mkdir -p "$resources/data/generated/dicts"
-for file in "$repo_root"/data/generated/dicts/*.qj; do
+  for file in "$repo_root"/data/generated/dicts/*.qj; do
     [[ ! -f "$file" || "$(basename "$file")" = ._* ]] || install -m644 "$file" "$resources/data/generated/dicts/"
   done
 fi

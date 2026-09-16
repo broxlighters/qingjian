@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write Debian metadata and reproducible build information into a staging tree."""
+"""//! 将 Debian 包信息和可复验的构建信息写入暂存目录。"""
 import datetime
 import json
 import os

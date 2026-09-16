@@ -24,13 +24,14 @@ systemctl --user enable --now qingjian-linux-server.service
 
 ### Debian / Ubuntu 包
 
-在 Debian/Ubuntu amd64 上可用以下命令生成完整数据包：
+在 Debian/Ubuntu amd64 上，先准备上述构建依赖、Rust 工具链和 `data/generated/` 产品数据，再生成完整数据包：
 
 ```bash
+sudo apt install dpkg-dev binutils python3
 apps/linux/scripts/package-deb.sh
 ```
 
-产物位于 `target/deb/qingjian-fcitx5_<版本>_<架构>.deb`，包含 Rust Server、Fcitx5 插件、词库、释义表、语言模型、许可证和用户级 systemd service。脚本通过 `dpkg-shlibdeps` 写入运行时依赖，并在打包前运行 24 项 Fcitx CTest；`--sample` 可生成不含产品生成数据的测试包。包内使用 `/usr/lib/<multiarch>/fcitx5/qingjian.so`，不会启用实验性 X11 自绘后端。
+产物位于 `target/deb/qingjian-fcitx5_<版本>_<架构>.deb`，包含 Rust Server、Fcitx5 插件、词库、释义表、语言模型、许可证和用户级 systemd service。脚本通过 `dpkg-shlibdeps` 写入运行时依赖，并在打包前运行 12 项 Fcitx CTest；`--sample` 可生成不含产品生成数据的测试包。包内使用 `/usr/lib/<multiarch>/fcitx5/qingjian.so`，候选窗口使用 Fcitx 默认 UI。
 
 安装包后以桌面用户运行 `systemctl --user daemon-reload && systemctl --user enable --now qingjian-linux-server.service`，重启 Fcitx5，再在配置工具中添加「青简」。包升级和卸载都不删除用户配置、学习数据和日志；源码用户安装的 `~/.local` 插件应先按其脚本卸载，避免两个版本同时被 Fcitx 发现。当前包是开发版构建，面向与构建机相同或更新的发行版，不保证旧发行版 ABI 兼容。
 
