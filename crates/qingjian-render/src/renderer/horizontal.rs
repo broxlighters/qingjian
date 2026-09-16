@@ -46,7 +46,7 @@ impl Renderer {
     }
 
     /// 横排各项的尺寸与统一行高。
-    fn items(&mut self, rows: &[Row], m: &Metrics) -> (Vec<Item>, f32) {
+    pub(super) fn items(&mut self, rows: &[Row], m: &Metrics) -> (Vec<Item>, f32) {
         let mut row_height: f32 = 0.0;
         let text_style = m.text_style();
         let index_style = m.index_style();
@@ -88,6 +88,17 @@ impl Renderer {
         let mut x = left + m.padding() + inset;
         for (i, (row, item)) in frame.rows.iter().zip(&items).enumerate() {
             let item_width = item.index_width + m.px(INDEX_GAP) + item.text_width;
+            if !row.text.is_empty() {
+                self.geometry.candidates.push(crate::HitRegion {
+                    row: i,
+                    rect: crate::Rect {
+                        x: x - inset,
+                        y,
+                        width: item_width + inset * 2.0,
+                        height: row_height,
+                    },
+                });
+            }
             if Some(i) == frame.highlighted {
                 self.fill_highlight(
                     canvas,
@@ -118,6 +129,12 @@ impl Renderer {
         if let Some(footer) = frame.footer.as_deref() {
             let style = m.index_style();
             let size = self.measure(footer, &style);
+            self.geometry.footer = Some(crate::Rect {
+                x: left + content_width - m.padding() - size.width,
+                y: top + m.small_offset(text_height),
+                width: size.width,
+                height: size.height,
+            });
             self.draw_text(
                 canvas,
                 footer,
@@ -130,7 +147,12 @@ impl Renderer {
         if let Some(row) = frame.highlighted.and_then(|i| frame.rows.get(i)) {
             let mut x = left + m.padding() + inset;
             let annotation_top = y + row_height + m.row_padding() / 2.0;
-            for (segment, tone) in &row.annotation {
+            for (segment_index, (segment, tone)) in row.annotation.iter().enumerate() {
+                if !row.text.is_empty() && !segment.is_empty() {
+                    self.geometry
+                        .annotations
+                        .push((frame.highlighted.unwrap(), segment_index));
+                }
                 let style = m.annotation_style(m.tone_color(*tone));
                 x += self.draw_text(canvas, segment, &style, x, annotation_top);
             }

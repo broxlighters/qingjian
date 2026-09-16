@@ -2,9 +2,11 @@
 //!
 //! 内部全用像素：主题里的点数进来先乘缩放倍数。文字的 y 都指行框顶边，字形在行高里垂直居中。
 
+mod background;
 mod columns;
 mod horizontal;
 mod item;
+mod panel;
 mod rendered;
 mod status;
 mod top_line;
@@ -48,6 +50,10 @@ const OPTICAL_SIZE: f32 = 17.0;
 pub struct Renderer {
     /// 文字测绘。
     text: TextPainter,
+
+    background: background::BackgroundCache,
+
+    geometry: crate::RenderGeometry,
 }
 
 /// 一次渲染期间的上下文：主题按倍数换算后的像素值。
@@ -121,7 +127,11 @@ impl Renderer {
     pub fn new(library: FontLibrary) -> Self {
         let mut text = TextPainter::new(library);
         text.set_optical_size(Some(OPTICAL_SIZE));
-        Self { text }
+        Self {
+            text,
+            background: Default::default(),
+            geometry: Default::default(),
+        }
     }
 
     /// 画一帧。`scale` 是点 → 像素的倍数（Retina 为 2）；带 `shadow` 时位图四周留出阴影的边。
@@ -136,24 +146,15 @@ impl Renderer {
         let metrics = Metrics { theme, scale };
         let (content_width, content_height) = self.preferred_size(frame, layout, &metrics);
         let margin = shadow.map_or(0.0, |s| metrics.px(s.margin()));
-        let width = (content_width + margin * 2.0).ceil();
-        let height = (content_height + margin * 2.0).ceil();
-        let mut canvas = Canvas::new(width as u32, height as u32)?;
-        let radius = metrics.corner_radius();
-        if let Some(shadow) = shadow
-            && let Some(content) =
-                tiny_skia::Rect::from_xywh(margin, margin, content_width, content_height)
-        {
-            shadow.paint(&mut canvas, content, radius, scale);
-        }
-        canvas.fill_round_rect(
+        self.geometry = Default::default();
+        let mut canvas = self.background.frame(
+            (content_width, content_height),
             margin,
-            margin,
-            content_width,
-            content_height,
-            radius,
+            metrics.corner_radius(),
+            scale,
             theme.colors.background,
-        );
+            shadow,
+        )?;
         let mut y = margin + metrics.padding();
         y += self.draw_top_line(&mut canvas, frame, &metrics, margin, y);
         match layout {
@@ -165,6 +166,7 @@ impl Renderer {
             }
         }
         Ok(Rendered {
+            geometry: std::mem::take(&mut self.geometry),
             pixmap: canvas.into_pixmap(),
             content_x: margin as u32,
             content_y: margin as u32,

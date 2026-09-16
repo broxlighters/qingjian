@@ -1,8 +1,14 @@
 //! 仅渲染的 C ABI v1；句柄线程串行，所有 Rust panic 在边界捕获。
+mod display;
+mod exposure;
 mod info;
 mod result;
+mod sense;
+use display::DisplayFrame;
+use exposure::Exposure;
 pub use info::ImageInfo;
-use qingjian_render::{Frame, RenderConfig, Renderer, Theme};
+use qingjian_platform::{LayoutMode, ThemeMode};
+use qingjian_render::{FontLibrary, Layout, PanelConfig, Renderer, Theme};
 pub use result::RenderResult;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -21,8 +27,9 @@ pub extern "C" fn qj_renderer_create(version: u32) -> *mut Renderer {
         return std::ptr::null_mut();
     }
     catch_unwind(|| {
-        Renderer::new()
+        FontLibrary::system("zh-CN")
             .ok()
+            .map(Renderer::new)
             .map(|r| Box::into_raw(Box::new(r)))
             .unwrap_or_default()
     })
@@ -66,19 +73,51 @@ pub unsafe extern "C" fn qj_renderer_render(
     catch_unwind(AssertUnwindSafe(|| {
         let bytes = unsafe { std::slice::from_raw_parts(json, length) };
         let protocol: qingjian_platform::protocol::Frame = serde_json::from_slice(bytes).ok()?;
-        let frame = Frame::from(&protocol);
-        let config = RenderConfig {
+        let display = DisplayFrame::new(&protocol);
+        let config = PanelConfig {
             scale,
             max_width: width,
             max_height: height,
-            system_theme: if dark == 1 {
-                Theme::dark()
-            } else {
-                Theme::light()
+            layout: match protocol.layout {
+                LayoutMode::Vertical => Layout::Vertical,
+                LayoutMode::Horizontal => Layout::Horizontal,
             },
+            theme: match protocol.theme {
+                ThemeMode::Dark => Theme::dark(),
+                ThemeMode::Light => Theme::light(),
+                ThemeMode::System => {
+                    if dark == 1 {
+                        Theme::dark()
+                    } else {
+                        Theme::light()
+                    }
+                }
+            },
+            page: protocol.page,
+            page_count: protocol.page_count,
         };
-        let (frame, timing) = unsafe { &mut *handle }.render_timed(&frame, config).ok()?;
-        Some(Box::into_raw(Box::new(RenderResult { frame, timing })))
+        let frame = unsafe { &mut *handle }
+            .render_panel(&display.frame, &config)
+            .ok()?;
+        let exposures = display
+            .senses
+            .iter()
+            .filter(|sense| {
+                !sense.segments.is_empty()
+                    && sense.segments.clone().all(|segment| {
+                        frame
+                            .image
+                            .geometry
+                            .annotations
+                            .contains(&(sense.row, segment))
+                    })
+            })
+            .map(|sense| Exposure {
+                row: sense.row,
+                sense: sense.sense,
+            })
+            .collect();
+        Some(Box::into_raw(Box::new(RenderResult { frame, exposures })))
     }))
     .ok()
     .flatten()
@@ -96,14 +135,14 @@ pub unsafe extern "C" fn qj_result_image(result: *const RenderResult, out: *mut 
         let result = unsafe { &*result };
         unsafe {
             *out = ImageInfo {
-                width: result.frame.width,
-                height: result.frame.height,
-                stride: result.frame.stride,
-                length: result.frame.pixels.len() as u64,
-                pixels: result.frame.pixels.as_ptr(),
+                width: result.frame.image.pixmap.width(),
+                height: result.frame.image.pixmap.height(),
+                stride: result.frame.image.pixmap.width() * 4,
+                length: result.frame.image.pixmap.data().len() as u64,
+                pixels: result.frame.image.pixmap.data().as_ptr(),
                 truncated: u32::from(result.frame.truncated),
-                layout_ns: result.timing.layout_ns,
-                raster_ns: result.timing.raster_ns,
+                layout_ns: result.frame.timing.layout_ns,
+                raster_ns: result.frame.timing.raster_ns,
             };
         }
         true
@@ -122,6 +161,8 @@ pub unsafe extern "C" fn qj_result_hit(result: *const RenderResult, x: u32, y: u
     catch_unwind(AssertUnwindSafe(|| {
         unsafe { &*result }
             .frame
+            .image
+            .geometry
             .hit_test(x, y)
             .map_or(-1, |i| i as i32)
     }))
@@ -163,7 +204,7 @@ pub unsafe extern "C" fn qj_result_exposure(
         return false;
     }
     catch_unwind(AssertUnwindSafe(|| {
-        let Some(item) = unsafe { &*result }.frame.exposures.get(index as usize) else {
+        let Some(item) = unsafe { &*result }.exposures.get(index as usize) else {
             return false;
         };
         unsafe {

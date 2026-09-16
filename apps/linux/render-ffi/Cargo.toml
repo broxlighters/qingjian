@@ -12,6 +12,7 @@ crate-type = ["staticlib", "rlib"]
 qingjian-render.workspace = true
 qingjian-platform.workspace = true
 serde_json.workspace = true
+qingjian-core.workspace = true
 
 [lints]
 workspace = true

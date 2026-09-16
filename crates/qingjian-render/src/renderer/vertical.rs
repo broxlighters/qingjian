@@ -21,7 +21,7 @@ impl Renderer {
         (width, height)
     }
 
-    fn columns(&mut self, rows: &[Row], m: &Metrics) -> Columns {
+    pub(super) fn columns(&mut self, rows: &[Row], m: &Metrics) -> Columns {
         let mut columns = Columns {
             index_width: 0.0,
             text_width: 0.0,
@@ -65,6 +65,18 @@ impl Renderer {
         let annotation_x = text_x + columns.text_width + m.column_gap();
         let text_height = m.px(m.theme.text_font.line_height);
         for (i, row) in frame.rows.iter().enumerate() {
+            if !row.text.is_empty() {
+                self.geometry.candidates.push(crate::HitRegion {
+                    row: i,
+                    rect: crate::Rect {
+                        x: left + m.padding() / 2.0,
+                        y,
+                        width: content_width - m.padding(),
+                        height: columns.row_height,
+                    },
+                });
+            }
+
             if Some(i) == frame.highlighted {
                 self.fill_highlight(
                     canvas,
@@ -86,7 +98,10 @@ impl Renderer {
             );
             self.draw_word(canvas, m, row, text_x, top, text_height);
             let mut x = annotation_x;
-            for (segment, tone) in &row.annotation {
+            for (segment_index, (segment, tone)) in row.annotation.iter().enumerate() {
+                if !row.text.is_empty() && !segment.is_empty() {
+                    self.geometry.annotations.push((i, segment_index));
+                }
                 let style = m.annotation_style(m.tone_color(*tone));
                 x += self.draw_text(canvas, segment, &style, x, top + small_offset);
             }
@@ -95,6 +110,12 @@ impl Renderer {
         if let Some(footer) = frame.footer.as_deref() {
             let style = m.index_style();
             let size = self.measure(footer, &style);
+            self.geometry.footer = Some(crate::Rect {
+                x: left + content_width - m.padding() - size.width,
+                y: y + m.row_padding(),
+                width: size.width,
+                height: size.height,
+            });
             self.draw_text(
                 canvas,
                 footer,

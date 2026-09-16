@@ -73,6 +73,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     engine.set_fuzzy(config.fuzzy);
     engine.set_shuangpin(config.general.shuangpin());
     engine.set_zhuyin_mode(config.general.zhuyin);
+    engine.set_learning(config.general.learning);
+    engine.set_chinese_first(config.general.chinese_first);
     engine.set_mode_keys(config.shortcut.mode);
     engine
         .set_custom_phrases(config.custom_phrases.clone())

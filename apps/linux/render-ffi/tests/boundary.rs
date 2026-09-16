@@ -1,6 +1,6 @@
 //! C ABI 的所有权、空指针、版本、畸形输入和稀疏槽位回归。
 use qingjian_platform::protocol::Frame;
-use qingjian_render::Renderer;
+use qingjian_render::{FontLibrary, Renderer};
 use qingjian_render_ffi::{
     ABI_VERSION, ImageInfo, qj_renderer_create, qj_renderer_destroy, qj_renderer_render,
     qj_result_destroy, qj_result_exposure, qj_result_hit, qj_result_image,
@@ -9,14 +9,18 @@ use std::ptr::{null, null_mut};
 
 #[test]
 fn malformed_boundaries_fail_and_results_outlive_renderer() {
-    let renderer = Renderer::with_fonts(
-        [
-            include_bytes!("../../../../crates/qingjian-render/tests/fonts/NotoSans-Regular.ttf")
-                .to_vec(),
-        ],
-        "Noto Sans",
-    )
-    .unwrap();
+    let renderer =
+        Renderer::new(
+            FontLibrary::from_fonts(
+                [include_bytes!(
+                    "../../../../crates/qingjian-render/tests/fonts/NotoSans-Regular.ttf"
+                )
+                .to_vec()],
+                "Noto Sans",
+                "zh-CN",
+            )
+            .unwrap(),
+        );
     let handle = Box::into_raw(Box::new(renderer));
     let json = serde_json::to_vec(&Frame::default()).unwrap();
     unsafe {

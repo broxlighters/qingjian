@@ -2542,6 +2542,7 @@ dependencies = [
  "tiny-skia",
  "tracing",
  "tracing-subscriber",
+ "unicode-segmentation",
  "windows",
 ]
 
@@ -2549,6 +2550,7 @@ dependencies = [
 name = "qingjian-render-ffi"
 version = "0.1.0-dev"
 dependencies = [
+ "qingjian-core",
  "qingjian-platform",
  "qingjian-render",
  "serde_json",

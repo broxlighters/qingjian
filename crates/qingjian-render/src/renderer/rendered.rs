@@ -3,6 +3,8 @@
 use tiny_skia::Pixmap;
 
 pub struct Rendered {
+    pub geometry: crate::RenderGeometry,
+
     /// 预乘 RGBA 位图，含阴影边。
     pub pixmap: Pixmap,
 

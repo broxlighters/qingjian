@@ -13,11 +13,14 @@ mod error;
 mod fonts;
 mod frame;
 mod gear;
+mod geometry;
 mod layout;
+mod panel;
 mod renderer;
 mod shadow;
 mod text;
 mod theme;
+mod timing;
 
 pub use color::Color;
 pub use error::RenderError;
@@ -33,3 +36,7 @@ pub use theme::{FontSpec, Palette, Theme};
 
 /// 让 `tiny_skia::Pixmap` 的使用方不用再单独依赖 tiny-skia。
 pub use tiny_skia::Pixmap;
+
+pub use geometry::{HitRegion, Rect, RenderGeometry};
+pub use panel::{PanelConfig, RenderedPanel};
+pub use timing::RenderTiming;

@@ -1,103 +1,53 @@
-//! 缓存背景与阴影，避免每键重复多层半透明填充；总缓存最多 8 MiB。
-use super::scene::Scene;
-use crate::{Rect, RenderConfig, RenderError};
+//! 背景与阴影只缓存像素，不保存输入文本；最多 8 张且总计不超过 8 MiB。
+use crate::canvas::Canvas;
+use crate::{Color, RenderError, Shadow};
 use std::collections::VecDeque;
-use tiny_skia::{FillRule, Paint, PathBuilder, Pixmap, Transform};
+use tiny_skia::Pixmap;
 
-type Key = (u32, u32, u32, u32, [u8; 4]);
+type Key = (u32, u32, f32, f32, f32, f32, Color, Option<Shadow>);
 #[derive(Default)]
 pub(super) struct BackgroundCache {
-    /// 最近 8 个尺寸/缩放/背景颜色，单图超过 8 MiB 不驻留。
     entries: VecDeque<(Key, Pixmap)>,
 
-    /// 已缓存位图的实际字节总数。
     bytes: usize,
 }
 impl BackgroundCache {
-    pub fn frame(&mut self, scene: &Scene, c: RenderConfig) -> Result<Pixmap, RenderError> {
-        let key = (
-            scene.width,
-            scene.height,
-            scene.shadow,
-            c.scale.to_bits(),
-            scene.theme.background,
+    pub(super) fn frame(
+        &mut self,
+        content: (f32, f32),
+        margin: f32,
+        radius: f32,
+        scale: f32,
+        color: Color,
+        shadow: Option<&Shadow>,
+    ) -> Result<Canvas, RenderError> {
+        let (cw, ch) = content;
+        let (width, height) = (
+            (cw + 2.0 * margin).ceil() as u32,
+            (ch + 2.0 * margin).ceil() as u32,
         );
-        if let Some((_, pixmap)) = self.entries.iter().find(|(stored, _)| *stored == key) {
-            return Ok(pixmap.clone());
+        let key = (width, height, cw, ch, radius, scale, color, shadow.copied());
+        if let Some((_, pixels)) = self.entries.iter().find(|(stored, _)| *stored == key) {
+            return Ok(Canvas::from_pixmap(pixels.clone()));
         }
-        let mut pixmap = Pixmap::new(scene.width, scene.height).ok_or(RenderError::Allocation)?;
-        if scene.width > scene.shadow * 2 && scene.height > scene.shadow * 2 {
-            // 由外到内的半透明同心圆角轮廓形成柔和阴影，外围保留透明点击空区。
-            for spread in (1..=scene.shadow).rev() {
-                let d = scene.shadow - spread;
-                rounded(
-                    &mut pixmap,
-                    Rect {
-                        x: d,
-                        y: d + 1,
-                        width: scene.width - 2 * d,
-                        height: scene.height - 2 * d - 1,
-                    },
-                    8.0 * c.scale + spread as f32,
-                    [0, 0, 0, 5],
-                );
-            }
-            rounded(
-                &mut pixmap,
-                Rect {
-                    x: scene.shadow,
-                    y: scene.shadow,
-                    width: scene.width - 2 * scene.shadow,
-                    height: scene.height - 2 * scene.shadow,
-                },
-                8.0 * c.scale,
-                scene.theme.background,
-            );
+        let mut canvas = Canvas::new(width, height)?;
+        if let Some(shadow) = shadow
+            && let Some(rect) = tiny_skia::Rect::from_xywh(margin, margin, cw, ch)
+        {
+            shadow.paint(&mut canvas, rect, radius, scale);
         }
-
-        let length = pixmap.data().len();
-        if length <= 8 * 1024 * 1024 {
-            while self.entries.len() >= 8 || self.bytes + length > 8 * 1024 * 1024 {
-                if let Some((_, previous)) = self.entries.pop_front() {
-                    self.bytes -= previous.data().len();
+        canvas.fill_round_rect(margin, margin, cw, ch, radius, color);
+        let pixels = canvas.into_pixmap();
+        let size = pixels.data().len();
+        if size <= 8 * 1024 * 1024 {
+            while self.entries.len() >= 8 || self.bytes + size > 8 * 1024 * 1024 {
+                if let Some((_, old)) = self.entries.pop_front() {
+                    self.bytes -= old.data().len();
                 }
             }
-            self.entries.push_back((key, pixmap.clone()));
-            self.bytes += length;
+            self.entries.push_back((key, pixels.clone()));
+            self.bytes += size;
         }
-        Ok(pixmap)
-    }
-}
-
-pub(super) fn rounded(pixmap: &mut Pixmap, rect: Rect, radius: f32, color: [u8; 4]) {
-    if rect.width == 0 || rect.height == 0 {
-        return;
-    }
-    let x = rect.x as f32;
-    let y = rect.y as f32;
-    let w = rect.width as f32;
-    let h = rect.height as f32;
-    let r = radius.min(w / 2.0).min(h / 2.0);
-    let mut path = PathBuilder::new();
-    path.move_to(x + r, y);
-    path.line_to(x + w - r, y);
-    path.quad_to(x + w, y, x + w, y + r);
-    path.line_to(x + w, y + h - r);
-    path.quad_to(x + w, y + h, x + w - r, y + h);
-    path.line_to(x + r, y + h);
-    path.quad_to(x, y + h, x, y + h - r);
-    path.line_to(x, y + r);
-    path.quad_to(x, y, x + r, y);
-    path.close();
-    if let Some(path) = path.finish() {
-        let mut paint = Paint::default();
-        paint.set_color_rgba8(color[0], color[1], color[2], color[3]);
-        pixmap.fill_path(
-            &path,
-            &paint,
-            FillRule::Winding,
-            Transform::identity(),
-            None,
-        );
+        Ok(Canvas::from_pixmap(pixels))
     }
 }

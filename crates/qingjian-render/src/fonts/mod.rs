@@ -100,6 +100,27 @@ impl FontLibrary {
         })
     }
 
+    /// 使用调用方提供的字体数据，供离线样例与可复现测试使用。
+    pub fn from_fonts(
+        fonts: impl IntoIterator<Item = Vec<u8>>,
+        family: &str,
+        locale: &str,
+    ) -> Result<Self, RenderError> {
+        let mut db = Database::new();
+        for data in fonts {
+            db.load_font_data(data);
+        }
+        if db.is_empty() {
+            return Err(RenderError::NoUiFont { tried: Vec::new() });
+        }
+        db.set_sans_serif_family(family.to_owned());
+        Ok(Self {
+            db,
+            ui_family: family.to_owned(),
+            locale: locale.to_owned(),
+        })
+    }
+
     /// 已加载的字族名，按加载顺序去重。
     pub fn families(&self) -> Vec<String> {
         let mut names: Vec<String> = Vec::new();

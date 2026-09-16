@@ -1,31 +1,37 @@
-//! 页码点击与候选命中互斥，首尾页不生成不可用按钮。
-use qingjian_render::{Frame, LayoutMode, RenderConfig, Renderer, Row};
+//! 两种布局的页码和候选命中区域必须相互分离。
+mod support;
+use qingjian_render::{Frame, Layout, PanelConfig, Row};
 #[test]
-fn page_arrows_match_visible_footer_and_page_bounds() {
-    let mut renderer = Renderer::with_fonts(
-        [include_bytes!("fonts/NotoSans-Regular.ttf").to_vec()],
-        "Noto Sans",
-    )
-    .unwrap();
-    for layout in [LayoutMode::Vertical, LayoutMode::Horizontal] {
+fn page_regions_are_enabled_only_when_the_page_exists() {
+    let mut renderer = support::renderer();
+    let frame = Frame {
+        rows: vec![Row::plain(0, "hello")],
+        ..Default::default()
+    };
+    for layout in [Layout::Vertical, Layout::Horizontal] {
         for page in 0..3 {
-            let frame = Frame {
-                rows: vec![Row::new("1", "word")],
+            let config = PanelConfig {
+                layout,
                 page,
                 page_count: 3,
-                layout,
                 ..Default::default()
             };
-            let rendered = renderer.render(&frame, RenderConfig::default()).unwrap();
+            let rendered = renderer.render_panel(&frame, &config).unwrap();
             assert_eq!(rendered.previous_page.is_some(), page > 0);
             assert_eq!(rendered.next_page.is_some(), page < 2);
             for rect in [rendered.previous_page, rendered.next_page]
                 .into_iter()
                 .flatten()
             {
-                assert_eq!(rendered.hit_test(rect.x, rect.y), None);
-                assert!(rect.x + rect.width <= rendered.width);
-                assert!(rect.y + rect.height <= rendered.height);
+                assert_eq!(
+                    rendered
+                        .image
+                        .geometry
+                        .hit_test(rect.x.ceil() as u32, rect.y.ceil() as u32),
+                    None
+                );
+                assert!(rect.x + rect.width <= rendered.image.pixmap.width() as f32);
+                assert!(rect.y + rect.height <= rendered.image.pixmap.height() as f32);
             }
         }
     }
