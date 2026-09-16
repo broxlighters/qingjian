@@ -5,12 +5,13 @@ repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 install_prefix="$HOME/.local"
 cargo_target_dir=$(realpath -m -- "${CARGO_TARGET_DIR:-$repo_root/target}")
 profile=release
+cmake_build_type=Release
 sample=false
 experimental_x11=OFF
 while (($#)); do
   case "$1" in
     --prefix) install_prefix=${2:?--prefix 需要路径}; shift 2 ;;
-    --debug) profile=debug; shift ;;
+    --debug) profile=debug; cmake_build_type=Debug; shift ;;
     --sample) sample=true; shift ;;
     --experimental-x11) experimental_x11=ON; shift ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
@@ -24,7 +25,7 @@ cargo_ffi_args=(build --target-dir "$cargo_target_dir" --manifest-path "$repo_ro
 [[ "$profile" != release ]] || cargo_ffi_args+=(--release)
 cargo "${cargo_ffi_args[@]}"
 ffi_lib="$cargo_target_dir/$profile/libqingjian_render_ffi.a"
-cmake_args=(-S "$repo_root/apps/linux/fcitx5" -B "$repo_root/build/fcitx5" -DCMAKE_BUILD_TYPE=Release)
+cmake_args=(-S "$repo_root/apps/linux/fcitx5" -B "$repo_root/build/fcitx5" "-DCMAKE_BUILD_TYPE=$cmake_build_type")
 cmake_args+=("-DQINGJIAN_EXPERIMENTAL_X11=$experimental_x11" "-DQINGJIAN_RENDER_FFI=ON" "-DQINGJIAN_RENDER_FFI_LIB=$ffi_lib" "-DQINGJIAN_RENDER_FFI_INCLUDE=$repo_root/apps/linux/render-ffi/include")
 cmake "${cmake_args[@]}"
 cmake --build "$repo_root/build/fcitx5" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-4}"

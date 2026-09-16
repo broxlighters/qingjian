@@ -1,6 +1,6 @@
 # Linux Fcitx5 构建与验证
 
-首版使用 C++ Fcitx5 addon + Rust Server 和 Fcitx 默认候选 UI。目标 Ubuntu 26.04 / Fcitx5 5.1.x；当前可构建并通过无桌面集成测试，尚未完成 GTK、Qt、Electron、Wayland 原生终端的实际输入验收，不能标记为测试版可用。
+首版使用 C++ Fcitx5 addon + Rust Server 和 Fcitx 默认候选 UI。目标 Ubuntu 26.04 / Fcitx5 5.1.x；当前可构建并通过无桌面集成测试，GTK、Qt、Electron、Wayland 原生终端和 GNOME Shell 均未声明自绘支持，不能标记为统一 UI 测试版可用。
 
 ## 构建与安装
 
@@ -28,7 +28,7 @@ ctest --test-dir build/fcitx5 --output-on-failure
 apps/linux/scripts/install.sh
 ```
 
-插件要求 Fcitx5 >= 5.1.9 的候选 comment API；C++20 兼容 Fcitx5 5.1.19 头文件。安装脚本默认 release，支持 `--debug`、`--prefix /绝对目录` 、`--sample` 和 `--experimental-x11`。`--sample` 跳过产品生成数据复制，保留样例；`--experimental-x11` 显式构建实验 XCB 后端。支持 `CARGO_TARGET_DIR` 指定 Rust 产物目录，`CMAKE_BUILD_PARALLEL_LEVEL` 控制 C++ 并行数（默认 4）。默认路径是 `~/.local/{bin,lib/fcitx5,share}`，安装后手动启动服务并在 Fcitx 配置工具中添加青简：
+插件要求 Fcitx5 >= 5.1.9 的候选 comment API；C++20 兼容 Fcitx5 5.1.19 头文件。安装脚本默认 release，支持 `--debug`、`--prefix /绝对目录` 、`--sample` 和 `--experimental-x11`；`--debug` 同时使用 Cargo debug 和 CMake Debug 配置。`--sample` 跳过产品生成数据复制，保留样例；`--experimental-x11` 显式构建实验 XCB 后端。支持 `CARGO_TARGET_DIR` 指定 Rust 产物目录，`CMAKE_BUILD_PARALLEL_LEVEL` 控制 C++ 并行数（默认 4）。默认路径是 `~/.local/{bin,lib/fcitx5,share}`，安装后手动启动服务并在 Fcitx 配置工具中添加青简：
 
 ```bash
 systemctl --user daemon-reload
@@ -57,6 +57,10 @@ systemctl --user enable --now qingjian-linux-server.service
 插件使用 InputContextProperty 管理生命周期。密码 / Disable 直接放行，Sensitive 使用 Engine 私密模式，能力全空也按私密处理。能力变化立即同步 Privacy 并清理面板，Shift / 停用 / 失焦的 Commit 使用同一入口再次刷新 Privacy；Fcitx 在能力尚未改变前发出的 CapabilityChanged 停用事件直接保守清理，不把旧组句提交到新密码框。组句消失或断线清空面板；I/O 使用共享 200 ms 截止时间并禁用 SIGPIPE，下一次按键重新握手。候选鼠标选择与翻页回到 Server，带帧序号防止旧候选回调选中新帧。
 
 ## 验证记录与未完成验收
+
+2026-09-16 阶段 3 打包验收：在全新临时前缀和全新 XDG 配置/数据/状态目录中完成 debug 安装，`qingjian-linux-server --version` 返回 `0.1.0-dev`，随包资源 `SHA256SUMS` 全部通过；通过 Linux v1 握手及 `nihao` 上屏“你好”的 socket 验证。随后卸载，用户配置和数据标记保留，程序、插件、service 和随包资源删除。实验构建依赖 `libxcb-randr0-dev` 缺失时会在 CMake 配置阶段明确失败，不会继续安装半成品。
+
+同日用独立 D-Bus/XDG 目录启动 GTK4 GNOME Text Editor（GTK 4.22.4，强制 XWayland），确认实验 `qingjian` addon 加载；该夹具没有取得可重复的 InputContext 握手，故只记录为插件探测，不能标记应用自绘通过。完整矩阵和原始性能数据见 [Linux 自绘候选面板支持矩阵](linux-ui-support.md) 与 [linux-ui-timing.csv](linux-ui-timing.csv)。
 
 2026-09-15 本机安装验证：在 Ubuntu 26.04 / Fcitx5 5.1.19 的现有 GNOME Wayland 会话中安装 release、启用用户服务并注册青简。首次实际加载发现用户 lib 不在 addon 搜索路径，已修正安装脚本；修正后通过运行中 Fcitx5 的 D-Bus 输入上下文确认插件加载、拼音预编辑及 `nihao` 上屏“你好”。这是实际守护进程链路验证，尚不代表各桌面应用的输入验收通过。
 
