@@ -1,0 +1,30 @@
+青简 Fcitx5 开发版
+
+安装：sudo apt install ./qingjian-fcitx5_<版本>_<架构>.deb
+
+按本机动态库自动声明最低依赖；Ubuntu 26.04 上构建的包不保证能在旧发行版运行。
+当前使用 Fcitx 默认候选窗口，实验自绘 X11 后端关闭。
+
+首次启动（以桌面用户运行，不要 sudo）：
+  systemctl --user daemon-reload
+  systemctl --user enable --now qingjian-linux-server.service
+  fcitx5 -rd
+
+随后在 Fcitx5 配置工具添加“青简”。升级后需要重启青简服务和 Fcitx5。
+服务位于 /usr/lib/systemd/user/；安装包不会自动启用或修改用户输入法列表。
+无 systemd 用户会话时，可在终端运行 /usr/bin/qingjian-linux-server。
+
+从源码用户安装迁移时，~/.local 的插件和服务会优先于系统包。
+先运行仓库 apps/linux/scripts/uninstall.sh 清除旧用户安装的程序，保留数据，
+再按上面的命令启动系统包。不要混用两种安装；不要用该脚本卸载系统包。
+
+卸载前（以桌面用户运行）：
+  systemctl --user disable --now qingjian-linux-server.service
+卸载：sudo apt remove qingjian-fcitx5
+卸载后：systemctl --user daemon-reload
+在 Fcitx5 配置工具移除青简并重启 Fcitx5。
+
+包不管理用户配置、学习数据及日志，remove/purge 均不会删除它们。
+数据仍在 XDG_CONFIG_HOME/qingjian、XDG_DATA_HOME/qingjian 和
+XDG_STATE_HOME/qingjian；未设置 XDG 时使用 ~/.config、~/.local/share、
+~/.local/state 下对应目录。

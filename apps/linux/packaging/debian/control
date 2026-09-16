@@ -1,0 +1,15 @@
+Source: qingjian-fcitx5
+Section: utils
+Priority: optional
+Maintainer: Qingjian Team <qingjian-team@users.noreply.github.com>
+Build-Depends: cmake, g++, pkg-config, python3, binutils, dpkg-dev, libfcitx5core-dev, libfcitx5config-dev, libfcitx5utils-dev, nlohmann-json3-dev
+
+Package: qingjian-fcitx5
+Architecture: any
+Maintainer: Qingjian Team <qingjian-team@users.noreply.github.com>
+Depends: ${shlibs:Depends}, fcitx5 (>= 5.1.9)
+Recommends: fcitx5-frontend-gtk3, fcitx5-frontend-gtk4, fcitx5-frontend-qt6, fonts-noto-cjk
+Description: Qingjian Chinese input method for Fcitx5
+ Chinese input with vocabulary learning and translation annotations.
+ Includes the engine service, Fcitx5 addon and dictionary resources.
+ The experimental custom X11 candidate panel is disabled.
