@@ -34,10 +34,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
-      - name: Install Fcitx5 build dependencies
+      - name: Install Fcitx5 build and test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ dbus-daemon libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev libxcb1-dev libxcb-render0-dev libxcb-randr0-dev libwayland-dev wayland-protocols xvfb
+          # gnome-origin 在私有总线加载真实 dbus/dbusfrontend；开发库不包含这些模块。
+          sudo apt-get install -y cmake g++ dbus-daemon fcitx5-modules libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev libxcb1-dev libxcb-render0-dev libxcb-randr0-dev libwayland-dev wayland-protocols xvfb
 
       - name: Format
         run: cargo fmt --all --check

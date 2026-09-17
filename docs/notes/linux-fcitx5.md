@@ -26,13 +26,15 @@ ctest --test-dir target/fcitx5-ui --output-on-failure
 X11 后端需要 `libxcb1-dev libxcb-render0-dev libxcb-randr0-dev`；字体建议 `fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji`。C ABI 输入最大 256 KiB，返回预乘 RGBA8；配套 result/renderer destroy 管理 Rust 内存，静态库未用部分通过 section GC 丢弃，内部 Rust 符号不向 Fcitx 导出。其配置、协议及未验收边界见 [支持矩阵](linux-ui-support.md)。
 
 ```bash
-sudo apt install libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev cmake g++ pkg-config libxcb1-dev libxcb-render0-dev libxcb-randr0-dev
+sudo apt install fcitx5-modules dbus-daemon libfcitx5core-dev libfcitx5config-dev libfcitx5utils-dev nlohmann-json3-dev cmake g++ pkg-config libxcb1-dev libxcb-render0-dev libxcb-randr0-dev
 cargo test -p qingjian-linux-server --locked
 cmake -S apps/linux/fcitx5 -B build/fcitx5
 cmake --build build/fcitx5
 ctest --test-dir build/fcitx5 --output-on-failure
 apps/linux/scripts/install.sh
 ```
+
+`qingjian-gnome-origin` 在私有 D-Bus 总线加载系统真实的 `dbus` 和 `dbusfrontend` 模块，测试依赖 `fcitx5-modules`；仅安装 `libfcitx5core-dev` 等开发库不足以运行该测试。CI 同样显式安装这些运行时模块。
 
 插件要求 Fcitx5 >= 5.1.9 的候选 comment API；C++20 兼容 Fcitx5 5.1.19 头文件。安装脚本默认 release，支持 `--debug`、`--prefix /绝对目录` 、`--sample` 和 `--disable-x11`；`--debug` 同时使用 Cargo debug 和 CMake Debug 配置。`--sample` 跳过产品生成数据复制，保留样例；`--disable-x11` 对应 `QINGJIAN_X11_BACKEND=OFF`，用于没有 XCB 开发包的最小安装；旧 `--experimental-x11` 命令仍兼容。显式开启时缺依赖会失败，不静默缩减包功能。支持 `CARGO_TARGET_DIR` 指定 Rust 产物目录，`CMAKE_BUILD_PARALLEL_LEVEL` 控制 C++ 并行数（默认 4）。默认路径是 `~/.local/{bin,lib/fcitx5,share}`，安装后手动启动服务并在 Fcitx 配置工具中添加青简：
 
