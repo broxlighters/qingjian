@@ -195,6 +195,8 @@ Fcitx 面板先由 `backend/probe` 分类上下文 display，再由 `backend/sel
 
 正式 GNOME 展示使用 `qingjian@qingjian.local` / `org.qingjian.Panel1`，与阶段 0 探针完全分开。Fcitx 实例共享异步 `GnomeBridge`；`GnomePanel` 用 Preparing/AwaitingPaint/Visible/Hiding/Fallback 状态、完整十进制字符串身份、最新帧合并、250 ms 绘制截止和 500 ms 租约处理连续所有权。密封 memfd 上限 1600×900 RGBA8 预乘；`Released`、`Prepared`、`Painted` 分开，只有当前 `Painted` 切换命中结果并报告曝光。有效交互矩形由 `qj_result_region` 导出，Shell 只给有效候选/翻页区建立指针子 Actor；无动作输入不关闭交互，正常空帧直接隐藏。生产扩展按入口、协议、焦点、几何、Actor 和服务拆分，协议见 [GNOME 候选位图协议](../design/linux-gnome-panel-protocol.md)。
 
+GNOME 连接构造失败由 Engine 与 Controller 的初始化入口捕获，不中断输入法加载或候选配置；原生 X11 承载仍可使用，依赖 GNOME 连接的展示路径在渲染时保守回退。CTest 默认使用不可连接的 D-Bus 地址，避免开发机桌面会话掩盖初始化异常；需要 D-Bus 的用例由 `dbus-run-session` 提供私有总线。
+
 XWayland 只有在 X server 报告 XWAYLAND 且 RandR 全部输出与 Shell 全部逻辑输出能联合求出唯一 root→stage 比率时才使用该 raster；不从 Xft DPI 或单个客户端 scale 猜倍率。当前双屏证据得到统一 2:1；几何无法匹配时用 `scale_unresolved` 回退。原生 Shell 路径由目标 monitor 返回 raster，UI、文字和 raster 三种倍率仍分别应用。
 
 输出快照通过 `OutputsChanged(s)` 更新，与 Hello/传输 epoch 分离；连接 owner 代次和 Bind/Hide 代次独立。续约100 ms定时器精度为1 ms，实际 Painted 续展有效窗口凭证，避免跨屏继承快到期的旧租约。正常 XCB 隐藏、失焦和空帧写入 Idle 诊断；提交失败仍保留 Fallback。

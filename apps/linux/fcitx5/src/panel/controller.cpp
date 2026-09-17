@@ -63,7 +63,13 @@ void Controller::configure(RendererMode mode, fcitx::EventLoop *loop, SizeOption
     loop_ = loop;
     size_ = size;
 #if defined(QJ_GNOME_BACKEND)
-    if (loop_ && mode_ != RendererMode::Fcitx && !gnomePanel_) gnomePanel_ = std::make_unique<GnomePanel>(*loop_);
+    if (loop_ && mode_ != RendererMode::Fcitx && !gnomePanel_) {
+        try {
+            gnomePanel_ = std::make_unique<GnomePanel>(*loop_);
+        } catch (const std::exception &) {
+            FCITX_WARN() << "青简 GNOME 连接初始化失败，保留其他候选后端";
+        }
+    }
 #endif
 }
 bool Controller::eligible(fcitx::InputContext *context) const {

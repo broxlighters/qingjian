@@ -195,4 +195,8 @@ if(BUILD_TESTING)
     set_tests_properties(qingjian-${scenario} PROPERTIES TIMEOUT 10)
   endforeach()
   add_test(NAME qingjian-uninstall-preserves-data COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/../tests/uninstall.sh)
+  # 无桌面总线也能初始化输入法；需要 D-Bus 的用例由 dbus-run-session 覆盖地址。
+  get_property(QINGJIAN_TESTS DIRECTORY PROPERTY TESTS)
+  set_tests_properties(${QINGJIAN_TESTS} PROPERTIES
+    ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/qingjian-test-bus")
 endif()

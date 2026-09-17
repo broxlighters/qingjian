@@ -41,7 +41,11 @@ QingjianEngine::QingjianEngine(AddonManager *manager)
     : instance_(manager->instance()), sessions_([](InputContext &) { return new qingjian::Session; }) {
     qingjian::panel::prepareRenderer();
 #if defined(QJ_GNOME_BACKEND)
-    gnomeBridge_ = qingjian::panel::GnomeBridge::shared(instance_->eventLoop());
+    try {
+        gnomeBridge_ = qingjian::panel::GnomeBridge::shared(instance_->eventLoop());
+    } catch (const std::exception &) {
+        FCITX_WARN() << "青简 GNOME 连接初始化失败，继续加载输入法";
+    }
 #endif
     manager->instance()->inputContextManager().registerProperty("qingjian-session", &sessions_);
 #if defined(QJ_RENDER_FFI)
