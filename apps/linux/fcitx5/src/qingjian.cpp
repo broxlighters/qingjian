@@ -4,6 +4,9 @@
 #include "candidate/word.h"
 #include "key/mapping.h"
 #include "panel/gnome/diagnostics.h"
+#if defined(QJ_GNOME_BACKEND)
+#include "panel/gnome/bridge.h"
+#endif
 #include <fcitx/addonmanager.h>
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextmanager.h>
@@ -37,6 +40,9 @@ std::string contextIdentity(const InputContext *context) {
 QingjianEngine::QingjianEngine(AddonManager *manager)
     : instance_(manager->instance()), sessions_([](InputContext &) { return new qingjian::Session; }) {
     qingjian::panel::prepareRenderer();
+#if defined(QJ_GNOME_BACKEND)
+    gnomeBridge_ = qingjian::panel::GnomeBridge::shared(instance_->eventLoop());
+#endif
     manager->instance()->inputContextManager().registerProperty("qingjian-session", &sessions_);
 #if defined(QJ_RENDER_FFI)
     appearance_ = std::make_unique<qingjian::panel::Appearance>(instance_->eventLoop(), [this] {
@@ -393,7 +399,17 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
                 context->updateUserInterface(UserInterfaceComponent::InputPanel);
                 acknowledge(defaultSenses);
             }, ready, appearance_ && appearance_->dark(), appearance_ ? appearance_->textScale() : 1.0,
-                appearance_ && appearance_->textScaleKnown(), session->focusIdentity);
+                appearance_ && appearance_->textScaleKnown(), session->focusIdentity,
+                [this, watched, revision] {
+                    auto *context = watched.get();
+                    if (!context) return;
+                    auto *session = context->propertyFor(&sessions_);
+                    if (session->opened && session->revision == revision && context->hasFocus() &&
+                        !session->privateInput && session->lastFrame.is_object()) {
+                        const auto frame = session->lastFrame;
+                        render(context, frame);
+                    }
+                });
         if (!custom) acknowledge(defaultSenses);
     }
     context->updatePreedit();

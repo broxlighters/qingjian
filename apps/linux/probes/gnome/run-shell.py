@@ -18,7 +18,7 @@ parser.add_argument('--sender', type=Path)
 parser.add_argument('--diagnostic-windows', action='store_true')
 parser.add_argument('--diagnostic-actor', action='store_true')
 parser.add_argument('--output', type=Path, default=Path('target/gnome-stage0'))
-parser.add_argument('--native', choices=['gtk', 'qt', 'firefox'])
+parser.add_argument('--native', choices=['gtk', 'qt', 'firefox', 'editor', 'terminal'])
 parser.add_argument('--mouse', action='store_true')
 parser.add_argument('--fault', choices=['pause', 'exit', 'overview'])
 parser.add_argument('--addon', type=Path)
@@ -26,7 +26,7 @@ parser.add_argument('--server', type=Path)
 parser.add_argument('--firefox', type=Path)
 parser.add_argument('--qt-pythonpath', type=Path)
 parser.add_argument('--scenario', choices=['single', 'fields', 'windows'], default='single')
-parser.add_argument('--scale', choices=[100, 150, 167], type=int, default=100)
+parser.add_argument('--scale', choices=[100, 125, 150, 167, 200], type=int, default=100)
 parser.add_argument('--text-scale', type=float)
 parser.add_argument('--ui-scale', type=int, default=100)
 parser.add_argument('--no-follow-text', action='store_true')
@@ -43,9 +43,9 @@ if args.native:
         parser.error('--native firefox requires explicit --firefox binary')
     args.sender = Path(__file__).with_name('native-input.py')
     args.diagnostic_actor = True
-    if args.scenario != 'single' and (args.native == 'firefox' or not args.mouse):
+    if args.scenario != 'single' and (args.native not in ('gtk', 'qt') or not args.mouse):
         parser.error('--scenario fields/windows requires --native gtk/qt --mouse')
-    if args.fallback and (not args.kimpanel or not args.mouse or args.scenario != 'single' or args.native == 'firefox'):
+    if args.fallback and (not args.kimpanel or not args.mouse or args.scenario != 'single' or args.native not in ('gtk', 'qt')):
         parser.error('--fallback requires --native gtk/qt --kimpanel --mouse and single scenario')
     if args.move_output and (not args.mouse or args.scenario != 'single' or args.fallback):
         parser.error('--move-output requires --mouse and single scenario without --fallback')
@@ -83,6 +83,8 @@ if args.native:
     if args.qt_pythonpath: env['QINGJIAN_TEST_QT_PYTHONPATH'] = str(args.qt_pythonpath.resolve())
 if args.extension:
     meta = json.loads((args.extension/'metadata.json').read_text())
+    if meta['uuid'] == 'qingjian@qingjian.local':
+        env['QINGJIAN_TEST_PRODUCTION'] = '1'
     destination = base/'data'/'gnome-shell'/'extensions'/meta['uuid']
     shutil.copytree(args.extension, destination)
     diagnostics(destination, args.diagnostic_windows, args.diagnostic_actor)
@@ -140,7 +142,8 @@ try:
             for _ in range(100):
                 check = sp.run(['gdbus', 'call', '--session', '--dest', 'org.freedesktop.DBus',
                                 '--object-path', '/org/freedesktop/DBus', '--method',
-                                'org.freedesktop.DBus.NameHasOwner', 'org.qingjian.PanelProbe1'],
+                                'org.freedesktop.DBus.NameHasOwner',
+                                'org.qingjian.Panel1' if env.get('QINGJIAN_TEST_PRODUCTION') else 'org.qingjian.PanelProbe1'],
                                env=env, capture_output=True, text=True, timeout=2)
                 if 'true' in check.stdout:
                     break

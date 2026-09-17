@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 def install(destination: Path, move: bool, screenshot: bool):
+    production = (destination / 'service.js').exists()
     methods = ''
     xml = ''
     if move:
@@ -28,16 +29,18 @@ def install(destination: Path, move: bool, screenshot: bool):
     }
 '''
         xml += '<method name="TestCapture"><arg type="s" direction="out"/></method>'
-    source = destination / 'extension.js'
+    source = destination / ('service.js' if production else 'extension.js')
     content = source.read_text()
     if screenshot:
-        content = content.replace("import St from 'gi://St';", "import St from 'gi://St';\nimport Shell from 'gi://Shell';")
-    source.write_text(content.replace('    enable() {', methods + '    enable() {'))
+        content = "import Shell from 'gi://Shell';\n" + content
+    marker = '    constructor() {' if production else '    enable() {'
+    source.write_text(content.replace(marker, methods + marker))
     protocol = destination / 'protocol.js'
     protocol.write_text(protocol.read_text().replace('<method name="Hello">', xml + '<method name="Hello">'))
 
 
 def diagnostics(destination: Path, windows: bool, actor: bool):
+    production = (destination / 'service.js').exists()
     if windows:
         source = destination/'extension.js'
         content = source.read_text().replace("() => this._invalidate());", """() => {
@@ -55,7 +58,24 @@ def diagnostics(destination: Path, windows: bool, actor: bool):
         });""", 1)
         source.write_text(content)
     if actor:
-        source = destination/'extension.js'
+        source = destination / ('service.js' if production else 'extension.js')
+        if production:
+            content = source.read_text().replace('    constructor() {', '''    TestState() {
+        const actor = this._surface._actor;
+        return JSON.stringify({pointer:global.get_pointer(),
+            actor:[actor.x,actor.y,actor.width,actor.height],visible:actor.visible,mapped:actor.mapped,
+            window:global.display.focus_window?.get_stable_sequence(),pid:global.display.focus_window?.get_pid(),
+            focus:global.display.focus_window?.get_wm_class(),title:global.display.focus_window?.get_title()});
+    }
+    constructor() {''')
+            source.write_text(content)
+            surface = destination / 'surface.js'
+            surface.write_text(surface.read_text().replace('this._actor.show();',
+                "this._actor.show(); console.log('QJ_ACTOR '+JSON.stringify([this._actor.x,this._actor.y,this._actor.width,this._actor.height]));"))
+            protocol = destination / 'protocol.js'
+            protocol.write_text(protocol.read_text().replace('<method name="Hello">',
+                '<method name="TestState"><arg type="s" direction="out"/></method><method name="Hello">'))
+            return
         source.write_text(source.read_text().replace('this._actor.show();',
             "this._actor.show(); console.log('QJ_ACTOR '+JSON.stringify([this._actor.x,this._actor.y,this._actor.width,this._actor.height]));")
             .replace('    enable() {', """    TestState() {

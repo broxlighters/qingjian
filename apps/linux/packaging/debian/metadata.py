@@ -32,7 +32,8 @@ def main() -> None:
         "source": "https://github.com/qingjian-team/qingjian",
         "renderer": "fcitx",
         "x11_backend": True,
-        "wayland_backend": False,
+        "wayland_backend": (stage_path / "usr/share/gnome-shell/extensions/qingjian@qingjian.local/metadata.json").is_file(),
+        "gnome_support_validated": False,
     }
     (stage_path / "usr/share/qingjian/resources/build-info.json").write_text(
         json.dumps(info, ensure_ascii=True, indent=2) + "\n"

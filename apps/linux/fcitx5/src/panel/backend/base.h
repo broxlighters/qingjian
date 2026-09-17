@@ -4,6 +4,7 @@
 #include <fcitx-utils/rect.h>
 #include <cstdint>
 #include <functional>
+#include <vector>
 namespace qingjian::panel {
 class Backend {
 public:
@@ -19,5 +20,9 @@ public:
     /// 合成器或连接失效时回退；默认用于无需外部协议的测试承载。
     virtual bool healthy() { return true; }
     virtual SubmissionTiming timing() const { return {}; }
+    virtual bool xwayland() const { return false; }
+    virtual std::vector<fcitx::Rect> monitors() { return {}; }
+    /// 几何变更只作废旧命中，不代表连接失败；读取后清除通知。
+    virtual bool takeGeometryChanged() { return false; }
 };
 }

@@ -165,6 +165,8 @@
   - [ ] 发版：Certum 开源代码签名证书、`windows-v<版本>` 标签与 CI
 - [ ] Linux IBus / Fcitx（接入方案见 [fcitx5_support_plan.md](fcitx5_support_plan.md)；首版目标为 Fcitx5）
 - [ ] Linux X11 / Wayland 双模式正式支持：完成 Wayland popup 承载、X11/XWayland 验收、性能门槛与回退（见 [linux_dual_ui_support_plan.md](linux_dual_ui_support_plan.md)）。
+  - 已落地正式 GNOME 扩展、异步位图协议、展示状态机、XWayland 几何倍率解析、两种 Server 启动模式、诊断及安装回滚；生产 D-Bus frontend 的隔离 GTK 场景已通过。
+  - IBus 与目标应用完整矩阵、Chrome 实包、物理登录重登/重启及受控性能仍未验收，`auto` 保持关闭，详见 [GNOME 开发记录](../notes/linux-gnome-stage0.md)。
 - [ ] 配置同步
 - [ ] 跨平台词库
 

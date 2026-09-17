@@ -1,0 +1,7 @@
+{
+  "uuid": "qingjian@qingjian.local",
+  "name": "青简候选窗口",
+  "description": "显示青简共享渲染器位图；开发验证版本，未完成全部应用验收",
+  "shell-version": ["50"],
+  "version": 1
+}

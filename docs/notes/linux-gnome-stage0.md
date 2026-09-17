@@ -1,5 +1,29 @@
 # GNOME 阶段 0 实施记录
 
+## 2026-09-17 正式组件实施补充
+
+本轮已新增独立生产 `qingjian@qingjian.local` / `org.qingjian.Panel1`：模块化 Shell 服务、共享异步桥接、完整64位身份、准备/显示两阶段、连续所有权、最新帧背压、250 ms绘制截止、500 ms租约及独立释放/曝光回执。FFI 普通构建链接生产桥接，`qingjian` 请求已证明的 dbus frontend；不需要 `QINGJIAN_GNOME_PROBE`。`auto` 仍不放行，完整应用和物理会话门槛没有因实现组件而取消。
+
+独立复测使用生产扩展及本轮 freshly built addon，在 GNOME 50.1 `--no-x11` 私有会话通过 GTK 单窗鼠标、同 PID 双窗 A→B→A、167%→100%→167%双输出和 bridge 退出撤窗；退出样本约56 ms隐藏。原始证据索引在工作目录 `target/gnome-implementation/`；均为隔离组件结果，不能替代物理登录、发行沙箱、Chrome、微信、VS Code、终端或性能全矩阵。生产协议见 [协议文档](../design/linux-gnome-panel-protocol.md)。
+
+尺寸根因调查新证据：同一时刻 Mutter eDP 逻辑1728×1080、倍率1.6666666；HDMI逻辑1920×1080、倍率1。RandR分别报告3456×2160和3840×2160，两屏root:stage均为2:1。Fcitx `InputContext::setCursorRect` 无scale重载强制1.0，XIM/IBus与旧D-Bus方法都使用该重载，因此客户端scale不是可信的root raster。新增全输出几何联合解析，在全部输出位置/大小能匹配时采用唯一比率，否则 `scale_unresolved`。还需记录反馈应用的实际上下文scale与同屏对照截图，才能勾选尺寸专项完成。
+
+服务默认绑定图形目标、后台模式沿用同名unit、迁移/停用保留、只读诊断、安装暂存rename和回滚已实现，并有私有socket/文件/假systemctl回归。真实独立user manager与物理登出重登/重启仍须完成，不把夹具通过记为会话验收。旧原装Kimpanel恢复定位缺陷仍未作为可分发依赖解决，完整发布继续受阻。
+
+第二轮生产修复补充：新增有效交互区域 FFI 与子 Actor 事件，非左键/空槽/页边界无动作不关闭交互；生产 GTK 真点击恰好上屏一次并撤窗（`target/r2/shell-mv11vxvz`）。首次 Hello 协商进入有期限 Preparing，正常空帧 Idle/Hide；固定错误原因传到诊断。XCB 的 RandR/工作区改变通知 Controller 作废旧命中并自动重绘当前有效帧，不需要下一键。安装新增不可变逐代快照和会话模式恢复、旧 Debian/扩展停用迁移以及驻留 deleted inode 诊断。
+
+本轮 Rust fmt/clippy 通过，workspace 排除 macOS 的测试443通过/1原有忽略；生产39项CTest中38通过、XCB冒烟1项按环境跳过后在独立 Xvfb+xcompmgr补测通过；其中工作区自动重绘、旧点击丢弃、首次握手、空帧及真实 D-Bus `buffer_invalid` 回退保因均有回归。生产/探针Node、管理故障注入、卸载保留数据均通过。Debian样例包和sha256位于 `target/gnome-implementation/deb/`，已核对正式扩展/管理入口/autostart/unit及资源校验；样例包不是完整产品数据发布包。原始日志为该目录上级的 `round2-*`。
+
+父任务最终源码组件复验 `target/qjf-r3final/report.json` 为15/15通过：GTK五档倍率、Qt、GNOME Text Editor50.1、Firefox155.0.1裸程序、同PID多窗、双输出、系统文字1.25/UI150、pause/exit/overview。12个正常场景无reason回退、无相关GLib错误，固定文本截图已保存。Firefox裸程序不代表Snap发行沙箱；这些结果不替代物理会话、尺寸定位精度与性能验收。完整包抽出组件的同矩阵复验 `target/qjf-r3package/report.json` 也为15/15通过，12个正常场景无回退，3个故障场景按预期撤窗；第四轮管理修复后的包内插件、Server和扩展与该轮组件逐字节一致。尺寸摘要与截图索引在 `target/gnome-implementation/parent-r3-desktop-summary.json`；五档Actor逻辑宽约221/220.8/220.667/220.8/220.5、高180，文字1.25为253×198，UI150为331×270，仅为隔离组件尺寸证据。
+
+第四轮管理修复仅分开旧服务账户快照与扩展安装/停用证据：首次随Debian引入的新扩展正常登记，Shell明确停用或源码安装的既有扩展停用仍保留。新增回归覆盖两条边界；UI源码保持第三轮冻结。
+
+以下为之前两轮阶段0实验的历史记录；其中“正式实现未提供”的状态已被上文更新，其余真实应用与发布门槛继续有效。
+
+第三轮审查修复：第二轮最终双输出失败的根因分为输出刷新重新 Hello 与 Bind 的竞争，以及 Fcitx `accuracy=0` 把100 ms续约合并至约250 ms。现在输出快照独立传输，不清连接 epoch；Hello 使用独立 owner 代次；D-Bus 错误只接受固定原因码；定时器明确1 ms精度，并在实际 Painted 后续展仍有效的窗口凭证。生产GTK双向跨屏两次、Qt双向跨屏一次均无回退且最终只上屏一次“你好”，证据为 `target/r3fix/shell-t8wrcayu`、`target/r3again/shell-egkbspct`、`target/r3qt/shell-zdahzuk8`；pause故障仍能撤窗（`target/r3pause/shell-732y88le`）。这些固定等待夹具不提供重绘性能结论。
+
+第三轮还将 Debian 全机升级布尔标记改成首次迁移时的账户身份快照：旧停用用户与升级后新账户分别测试通过，后续升级不扩大集合，postinst 不访问用户家目录或总线。XCB正常隐藏、失焦和空帧的Idle状态新增诊断回归。39项CTest中38通过、XCB环境skip；Rust未改动，沿用第二轮443通过/1忽略证据，fmt及生产/探针Node、管理、卸载和最小构建重新通过。父任务的editor/terminal夹具新增项仍须分别记录：editor有组件证据，terminal因私有user manager缺失尚未进入输入测试，不能记为已支持。
+
 2026-09-17，第二轮。已完成 **dbus 输入模块的窗口身份证明、独立尺寸链路和隔离双输出重绘**；方案阶段 0 尚未完整验收。默认仍为 `fcitx`，`auto` 没有放行路径；正常安装不包含实验 Shell 后端。第一轮 program/wmclass 单窗口实验已被下述 v2 凭证替换，旧结果仅保留作历史证据。
 
 ## 环境与证据范围
@@ -65,7 +89,7 @@ XCB保持checked错误检查，同一有效display连续更新避免每帧unmap/
 | 方案阶段 | 当前状态 |
 | --- | --- |
 | 0 接口与真实通路 | dbus身份、GTK/Qt/Firefox固定输入组件、三档倍率和双输出具备证据；物理登录、IBus/发行沙箱/完整目标矩阵未通过 |
-| 1–2 正式所有权及GNOME后端 | 未实现完整生产共享桥接、连续所有权和正式协议；实验仍逐帧Withdraw/准备，Actor整位图接收指针，正常安装不启用 |
-| 3 尺寸/性能 | 独立配置、portal文字倍率、原生输出raster、跨屏重绘、XCB连续更新完成；XWayland一致性和受控完整性能未通过 |
+| 1–2 正式所有权及GNOME后端 | 生产共享桥接、连续所有权、正式协议及按有效交互区接收指针已实现；隔离生产 GTK 单/多窗、双输出、断线与点击通过，物理登录及完整应用矩阵未通过 |
+| 3 尺寸/性能 | 独立配置、portal文字倍率、原生输出raster、跨屏重绘、XCB连续更新和XWayland全输出几何解析完成；同屏实物对照与受控完整性能未通过 |
 | 4 应用与故障 | 隔离GTK/Qt及裸Firefox部分组件通过，微信/Chrome/VS Code/终端、分发沙箱和锁屏/热插拔等正式矩阵缺失 |
-| 5 默认启用/发行 | 未改默认、未提供宣称完整支持的发行包；等待前置门槛 |
+| 5–6 服务/安装/发行 | 服务模式、诊断、事务安装、Debian样例包、升级停用偏好及逐代回滚已实现并通过隔离回归；未改默认，等待真实登录/重启、完整包升级及应用矩阵门槛 |

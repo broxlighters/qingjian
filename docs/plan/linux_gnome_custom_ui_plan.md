@@ -1,8 +1,8 @@
 # Ubuntu / GNOME Wayland 自绘 UI 与服务自动启动开发方案
 
-更新日期：2026-09-17。代码核对基线：`8e168b9`。状态：开发方案，部分原型已实现，正式支持尚未验收。本次文档更新不表示已部署新功能，也不改变本机服务、Shell 或输入法设置。
+更新日期：2026-09-17。代码核对基线：`8e168b9` 加当前工作区。状态：生产组件、管理与安装入口已实现，完整支持仍待验收；`auto` 未开放。本次未改变本机服务、Shell 或输入法设置。
 
-已有成果包括 D-Bus 窗口身份证明、GTK/Qt 多输入框/多窗口、三档倍率及混合输出重绘的隔离 GNOME 组件实测。IBus 身份、物理登录、正式连续所有权、安装升级与会话自动启动等门槛仍待完成。证据与未通过项见 [阶段 0 记录](../notes/linux-gnome-stage0.md)。
+已有成果包括生产 D-Bus 共享桥接、连续所有权、模块化 Shell 扩展、GTK/Qt 多输入框/多窗口及混合输出重绘，以及隔离安装事务和服务迁移回归。IBus 身份、目标发行应用完整矩阵、物理登录/重启、尺寸对照和受控性能仍是发布门槛。证据与未通过项见 [阶段 0 记录](../notes/linux-gnome-stage0.md)。
 
 本文接续 [Linux 双模式方案](linux_dual_ui_support_plan.md)，替代其中针对 GNOME 的通用 Wayland popup 主线，以及本次目标范围内的阶段划分、默认启用和验收要求。其他 compositor 的 input-method popup 研究仍保留为独立工作，不作为本次交付的前置依赖。当前事实以 [支持矩阵](../notes/linux-ui-support.md) 和 [Wayland 核验记录](../notes/linux-wayland-api.md) 为准。
 
@@ -49,14 +49,14 @@
 
 | 项目 | 当前证据 | 解除标准 |
 | --- | --- | --- |
-| GNOME 展示链路 | 显式构建的阶段0扩展已承载真实共享位图；正常构建仍无生产GNOME后端 | 阶段 0 在真实应用完成位图、真实候选、定位、点击、失焦与回退闭环 |
+| GNOME 展示链路 | 正常 FFI 构建已接入生产 `Panel1`，正式扩展有隔离 GTK 单窗/多窗、跨屏与断线撤窗证据 | 完成目标发行应用、物理会话与正式故障矩阵 |
 | 通用 popup 路线 | 本机普通连接未发现 input-panel v1 / input-method v2；本地 Fcitx 补丁仅接受符合条件的 `wayland_v2`，不覆盖 IBus/GNOME | 本次改用 Shell 展示；不把该补丁上游合入或安装作为 GNOME 前置 |
 | 坐标与焦点对应 | dbus输入模块已有同源按键+窗口对象+IC代次实验凭证，GTK/Qt多窗/多框及跨屏通过隔离测试；IBus消息不带时间戳，尚无对应凭证 | 形成分通路坐标记录，在移动、缩放、切换焦点时正确定位且无旧帧误选 |
-| 自绘尺寸偏小 | UI/文字/raster独立链路已落地；Shell采用目标monitor倍率，GTK客户端2×与输出1.5×分开；XCB倍率来源与原截图时状态仍未厘清 | 查明有效缩放和单位换算，修复缺失/重复缩放，通过第 6.4、9.4 节的尺寸与混合缩放验收 |
-| 面板接管接口 | 公开callback已用于X11与有期限的Shell实验；默认Kimpanel恢复已验证，原装包恢复光标缺陷有独立上游补丁；正式连续所有权未实现 | 扩展到异步展示，验证默认面板与自绘面板互斥、断线后恢复 |
+| 自绘尺寸偏小 | UI/文字/raster独立；Shell采用目标monitor倍率；XWayland新增全部输出联合几何解析，当前双屏root:stage为2:1；原反馈应用同屏对照仍缺 | 完成第 6.4、9.4 节的尺寸与混合缩放验收 |
+| 面板接管接口 | 生产连续所有权、有界首次握手、异步绘制/隐藏/曝光已实现；原装Kimpanel恢复光标缺陷仍只有独立上游补丁 | 验证完整故障矩阵并形成可分发的默认面板定位修复依赖 |
 | XWayland 性能 | 旧48场景p95最高580.506ms；连续更新消除每帧unmap/map后release单场景p95约1.411ms，仍非受控完整矩阵 | 定位等待来源、完成修复和受控复测，满足第 9 节性能门槛 |
 | 默认启用 | 配置默认 `fcitx`；`auto` 没有已放行路径 | 目标矩阵通过、运行时检查齐全后，再按第 10 节调整新安装默认值 |
-| 服务生命周期 | unit 使用 `WantedBy=default.target`、`PartOf=graphical-session.target`；linger 保留 user manager 时存在重登不拉起服务的缺口 | 修正启用目标并迁移旧链接，验证 linger 开关两种情况下的登出重登与重启 |
+| 服务生命周期 | unit 已改为 `WantedBy=graphical-session.target`；同名单元支持后台模式，保留旧安装停用选择，迁移夹具通过 | 验证真实 user manager、linger 开关两种情况下的登出重登与重启 |
 | 安装来源 | 本机系统 unit/资源与用户目录二进制/插件通过 override 混用 | 明确唯一安装来源，能迁移、检测冲突、升级与回滚 |
 
 ### 2.1 本机诊断快照与证据边界
@@ -140,7 +140,7 @@ Shell 扩展不生成候选、不解析拼音、不排版候选文字、不直�
 
 ## 5. GNOME 桥接协议与位图通路
 
-以下为拟定协议，阶段 0 验证后冻结 v1；不是仓库已有接口。命名、目录和限制在实现时同步到设计文档。
+以下协议已实现为生产 v1，接口与限制见 [协议文档](../design/linux-gnome-panel-protocol.md)；完整发布仍受应用与会话验收门禁约束。
 
 ### 5.1 传输与显示
 
@@ -281,7 +281,7 @@ Server 不可用时没有可用的青简候选，插件按现有策略放行按�
 
 ## 8. 代码改动地图
 
-新增路径为建议布局，实施时仍遵守一个类型一个文件、按职责分目录的仓库约定。
+下表记录当前实现布局及后续验收职责。
 
 | 路径 | 计划工作 |
 | --- | --- |
@@ -289,9 +289,9 @@ Server 不可用时没有可用的青简候选，插件按现有策略放行按�
 | `apps/linux/fcitx5/src/panel/gnome/`（已有原型） | 将探针升级为共享桥接连接、协议编解码、上下文绑定、位图传输和事件适配 |
 | `apps/linux/fcitx5/src/panel/` | Controller 状态、展示租约、geometry/submission 身份与生命周期；新增集中管理的尺寸解析，区分栅格、文字和用户 UI 倍率 |
 | `apps/linux/fcitx5/src/qingjian.cpp` | 调整每帧重建、默认面板交接、pending 与曝光处理；不改候选顺序或提交语义 |
-| `apps/linux/gnome-extension/`（新增） | GNOME 50 扩展入口、协议、位图 Actor、几何、输入、会话状态与资源清理；分别成文件 |
+| `apps/linux/gnome/extension/` | GNOME 50 扩展入口、协议、位图 Actor、几何、输入、会话状态与资源清理；分别成文件 |
 | `apps/linux/probes/gnome/`（已有） | 保留阶段 0 复现工具，生产实现复用证据与夹具，不把探针直接当正式扩展安装 |
-| `apps/linux/fcitx5/tests/`、`apps/linux/gnome-extension/tests/`（新增后者） | 状态、失效、传输与几何测试；扩展实际绘制另用桌面测试 |
+| `apps/linux/fcitx5/tests/`、`apps/linux/gnome/tests/` | 状态、失效、传输与几何测试；扩展实际绘制另用桌面测试 |
 | `apps/linux/fcitx5/tests/desktop/` | 在保留现有隔离 X11 夹具基础上，增加真实 GNOME 场景记录与复现工具 |
 | `apps/linux/render-ffi/` | 接收 Linux 展示参数并调整主题副本；需要新增入口时保留 ABI 版本检查及旧入口兼容，不改变共享主题默认值 |
 | `apps/linux/server/src/dispatch/` | 透传 Linux UI 大小配置，协商可用字段；不处理桌面 DPI，不改变 Core 候选逻辑 |
@@ -393,7 +393,7 @@ follow_system_text_scale = true
 
 生产扩展入口只负责 enable/disable；协议、身份、几何、Actor、指针与资源清理按职责分文件。迁移现有 `identity.js`、`protocol.js` 和测试时保持可追溯，不能把整份探针改名后宣称已完成状态机和连续所有权。
 
-新增 `qingjian-diagnose`（计划命令，尚未实现），默认只读，提供文字及 `--json` 输出。报告至少包括：服务运行/启用/限速状态、启动模式、安装来源与 override、socket 握手、Fcitx 实际映射的插件版本、Shell/扩展版本及 owner、最近后端选择与原因码。扩展 ACTIVE、有 D-Bus owner、自绘实际 Painted 分别报告；前两项不代表输入验证成功。
+已实现 `qingjian-diagnose`，默认只读，提供文字及 `--json` 输出。报告服务运行/启用/限速状态、启动模式、安装来源与 override、socket 握手、Fcitx 驻留插件 PID/inode/deleted/哈希、Shell/扩展版本及 owner、最近后端选择与原因码。无法读取驻留 inode 时哈希为未知，不用磁盘新文件冒充旧插件。扩展 ACTIVE、有 D-Bus owner、自绘实际 Painted 分别报告；前两项不代表输入验证成功。
 
 诊断不读取历史输入日志、云密钥或完整进程环境，只采集明确的非敏感字段。固定样例验证用独立私密会话，避免把测试输入写入用户学习数据。命令不能因诊断请求重启 Fcitx、切换输入法或修改配置。
 
@@ -409,7 +409,7 @@ Server 是无界面的用户进程，Fcitx 和 Shell 扩展属于图形会话，
 
 ### 11.2 默认：随图形会话启动
 
-目标 unit 模板如下，尚未修改当前实现；安装时正确转义并替换 `@PREFIX@`：
+已实现的 unit 模板如下；安装时正确转义并替换 `@PREFIX@`：
 
 ```ini
 [Unit]
@@ -450,7 +450,7 @@ WantedBy=graphical-session.target
 
 ### 11.4 用户安装与首次启用
 
-以下选项与管理命令属于待实现接口，不可当作现有命令执行：安装入口提供 `--gnome`、`--no-start` 和 `--startup=session|background`；保留现有 `--debug`、`--sample`、`--disable-x11` 等参数。GNOME 完整包在目标会话默认选择 session，最小包可以不含扩展。
+安装入口已提供 `--gnome`、`--no-start` 和 `--startup=session|background`；保留现有 `--debug`、`--sample`、`--disable-x11` 等参数。GNOME 完整包在目标会话默认选择 session，最小包可以不含扩展。安装使用不可变逐代快照，文件和 manifest 发布失败恢复旧状态；会话安装回滚同时恢复原模式及启动链接。
 
 1. 先采集当前安装来源、服务模式、显式停用状态及组件版本。所有构建、测试和资源校验成功后再进入安装阶段。
 2. 在目标文件系统暂存完整产物，以 rename 替换正在运行的可执行文件/共享库，避免直接覆盖映射中的文件；保留上一版产物和清单用于失败回滚。跨组件替换不具备整体原子性，因此必须配合协议兼容与失败恢复。
@@ -513,6 +513,8 @@ Server、Fcitx、扩展先后顺序任意都应收敛：Server 晚到时下一�
 
 ## 12. 分阶段实施、PR 切分与检查
 
+当前实现状态：阶段 1–2 的生产代码与组件回归已完成；阶段 3 的几何倍率解析、自动重绘和诊断已完成，尺寸对照/受控性能未通过；阶段 5 的服务、安装事务、Debian 结构及迁移夹具已完成，真实会话验收未通过。阶段 0/4 的 IBus 与完整应用矩阵继续阻塞，阶段 6 仅完成诊断、回滚及用户文档，默认 `auto` 必须等待前述门槛。以下阶段表的“进入下一阶段条件”是完成定义，不能用组件实现替代验收。
+
 | 阶段 | 工作与产物 | 进入下一阶段的条件 | 初步工作量 |
 | --- | --- | --- | --- |
 | 0：解除关键前置 | 冻结环境；复用 FD → GJS → 纹理和 D-Bus 身份证据；补真实登录通路、原生浏览器/GTK/Qt、IBus 研究决定与尺寸根因；复现服务生命周期缺口 | 原生 Wayland 真实候选可点击、定位正确、不抢焦点；100%/150%/约 167% 与回退通过；每条目标输入通路具有实现依据，不依赖 XCB 冒充原生 | 3–5 人日 |
@@ -555,7 +557,7 @@ Server、Fcitx、扩展先后顺序任意都应收敛：Server 晚到时下一�
 
 阶段 0 允许临时原型，但必须记录执行命令、代码提交、GNOME 版本、测试应用、输入法通路、实际自绘后端与截图；原型检查项未通过就保持阻塞状态，不只提交一个“能编译”的实现。
 
-现有代码级验证入口如下；实施时根据改动运行适用检查，新增生产扩展与服务夹具后补入 CI，不把尚未实现的命令记为通过：
+现有代码级验证入口如下；实施时根据改动运行适用检查。生产扩展、服务和管理夹具已进入 CI；桌面及物理会话检查仍须单独记录：
 
 ```bash
 cargo fmt --all -- --check
@@ -563,6 +565,8 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 ctest --test-dir build/fcitx5 --output-on-failure
 node apps/linux/probes/gnome/test.mjs
+node apps/linux/gnome/test.mjs
+python3 -B apps/linux/tests/management.py
 bash apps/linux/tests/uninstall.sh
 ```
 

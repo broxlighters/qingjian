@@ -30,6 +30,25 @@ int main(int argc, char **argv) {
     select(owner);
     auto backend = qingjian::panel::openXcb(argv[1]);
     assert(backend && backend->healthy());
+    // 此处只有隔离 Xvfb，工作区事件应通知重绘而不使连接失败。
+    const std::string desktop = "_NET_CURRENT_DESKTOP";
+    const std::unique_ptr<xcb_intern_atom_reply_t, decltype(&std::free)> desktopAtom(xcb_intern_atom_reply(connection,
+        xcb_intern_atom(connection, false, desktop.size(), desktop.c_str()), nullptr), &std::free);
+    assert(desktopAtom);
+    const uint32_t currentDesktop = 0;
+    xcb_change_property(connection, XCB_PROP_MODE_REPLACE, screen->root, desktopAtom->atom,
+        XCB_ATOM_CARDINAL, 32, 1, &currentDesktop);
+    xcb_flush(connection);
+    bool changed = false;
+    auto geometryDeadline = Clock::now() + std::chrono::seconds(1);
+    while (!changed && Clock::now() < geometryDeadline) {
+        assert(backend->poll([](int, int, unsigned) { assert(false); return false; }));
+        changed = backend->takeGeometryChanged();
+        if (!changed) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(changed && !backend->takeGeometryChanged() && backend->healthy());
+    const uint8_t pixels[16] = {};
+    assert(backend->present(pixels, 2, 2, 8, fcitx::Rect(10, 10, 11, 30)));
     select(XCB_NONE);
     auto deadline = Clock::now() + std::chrono::seconds(2);
     while (backend->healthy() && Clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(10));

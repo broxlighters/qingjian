@@ -12,6 +12,7 @@
 #include <cstring>
 #include <vector>
 #include <tuple>
+#include <utility>
 #include <chrono>
 
 namespace qingjian::panel {
@@ -29,6 +30,9 @@ public:
         int index = 0;
         connection_ = xcb_connect(display.c_str(), &index);
         if (!connection_ || xcb_connection_has_error(connection_)) return false;
+        Reply<xcb_query_extension_reply_t> xwayland(xcb_query_extension_reply(connection_,
+            xcb_query_extension(connection_, 8, "XWAYLAND"), nullptr), &std::free);
+        xwayland_ = xwayland && xwayland->present;
         const auto *setup = xcb_get_setup(connection_);
         reason_ = "X11 服务端像素字节序不受支持";
         if (setup->image_byte_order != XCB_IMAGE_ORDER_LSB_FIRST) return false;
@@ -118,32 +122,30 @@ public:
         if (maxBytes <= 64 + width * 4) { discardPixmap(); return false; }
         const auto rows = static_cast<uint32_t>(std::min<uint64_t>(height, (maxBytes - 64) / (width * 4)));
         const auto end = pixels_.firstRow() + pixels_.rowCount();
+        std::vector<xcb_void_cookie_t> requests;
         for (uint32_t row = pixels_.firstRow(); row < end; row += rows) {
             auto count = std::min(rows, end - row);
-            if (!check(xcb_put_image_checked(connection_, XCB_IMAGE_FORMAT_Z_PIXMAP,
+            requests.push_back(xcb_put_image_checked(connection_, XCB_IMAGE_FORMAT_Z_PIXMAP,
                     pixmap_, gc_, width, count, 0, row, 0, 32,
-                    width * count * 4, pixels_.data() + static_cast<size_t>(row) * width * 4))) {
-                discardPixmap();
-                return false;
-            }
+                    width * count * 4, pixels_.data() + static_cast<size_t>(row) * width * 4));
             timing_.uploadBytes += uint64_t(width) * count * 4;
         }
         const auto commit = std::chrono::steady_clock::now();
         timing_.uploadNs = nanoseconds(commit - upload);
         uint32_t config[] = {static_cast<uint32_t>(x), static_cast<uint32_t>(y), width, height};
-        if (!check(xcb_configure_window_checked(connection_, window_, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
-                             XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, config)) ||
-            (resized && !check(xcb_change_window_attributes_checked(connection_, window_, XCB_CW_BACK_PIXMAP, &pixmap_))) ||
-            !check(xcb_clear_area_checked(connection_, false, window_, 0, 0, 0, 0))) {
-            discardPixmap();
-            return false;
-        }
-        auto mapped = xcb_map_window_checked(connection_, window_);
-        sequence_ = mapped.sequence;
-        bool ok = check(mapped);
+        requests.push_back(xcb_configure_window_checked(connection_, window_, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y |
+                             XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT, config));
+        if (resized) requests.push_back(xcb_change_window_attributes_checked(connection_, window_, XCB_CW_BACK_PIXMAP, &pixmap_));
+        requests.push_back(xcb_clear_area_checked(connection_, false, window_, 0, 0, 0, 0));
+        if (!mapped_) requests.push_back(xcb_map_window_checked(connection_, window_));
+        sequence_ = requests.back().sequence;
         xcb_flush(connection_);
+        // 先批量提交再检查错误；第一个同步屏障覆盖已发请求，避免逐块/逐操作往返。
+        bool ok = true;
+        for (const auto request : requests) if (!check(request)) ok = false;
         timing_.commitNs = nanoseconds(std::chrono::steady_clock::now() - commit);
         if (!ok || xcb_connection_has_error(connection_)) { discardPixmap(); return false; }
+        mapped_ = true;
         return true;
     }
     void hide() override {
@@ -152,6 +154,7 @@ public:
             xcb_flush(connection_);
         }
         sequence_ = 0;
+        mapped_ = false;
         drain();
     }
     void drain() override {
@@ -167,8 +170,8 @@ public:
         while (auto *raw = xcb_poll_for_event(connection_)) {
             Reply<xcb_generic_event_t> event(raw, &std::free);
             if ((event->response_type & 0x7f) == 0) return false;
-            // 先撤下旧几何的窗口，下一次有效帧按最新屏幕/工作区重新排版。
-            if (screens_.changed(event.get())) return false;
+            // 几何改变不是连接故障；读尽队列后撤下旧画面，控制器立即重新排版。
+            if (screens_.changed(event.get())) geometryChanged_ = true;
             // XCB full_sequence 绑定提交顺序，旧窗口排队的事件不能点到新页。
             if (sequence_ && static_cast<int32_t>(event->full_sequence - sequence_) >= 0 &&
                 (event->response_type & 0x7f) == XCB_BUTTON_PRESS) {
@@ -177,6 +180,7 @@ public:
             }
         }
         if (xcb_connection_has_error(connection_)) return false;
+        if (geometryChanged_) { hide(); return true; }
         // 先读尽 XCB 内部队列；fd 未必还可读，不能等下一次唤醒。
         // 回调可能换帧甚至销毁后端，之后只访问本地事件，不再访问 this。
         for (const auto &[x, y, button] : buttons)
@@ -212,6 +216,9 @@ public:
         return !xcb_connection_has_error(connection_);
     }
     SubmissionTiming timing() const override { return timing_; }
+    bool xwayland() const override { return xwayland_; }
+    std::vector<fcitx::Rect> monitors() override { return screens_.monitors(); }
+    bool takeGeometryChanged() override { return std::exchange(geometryChanged_, false); }
 private:
     static uint64_t nanoseconds(std::chrono::steady_clock::duration duration) {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
@@ -227,6 +234,10 @@ private:
     /// 单独连接，销毁时窗口、GC、pixmap 全部由 X server 回收。
     xcb_connection_t *connection_ = nullptr;
 
+    bool xwayland_ = false;
+
+    bool geometryChanged_ = false;
+
     /// 此连接选中的根屏幕。
     xcb_screen_t *screen_ = nullptr;
 
@@ -235,6 +246,8 @@ private:
 
     /// 非激活 override-redirect 窗口。
     xcb_window_t window_ = 0;
+
+    bool mapped_ = false;
 
     /// 32 位上传 GC。
     xcb_gcontext_t gc_ = 0;

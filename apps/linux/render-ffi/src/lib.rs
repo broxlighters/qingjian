@@ -2,6 +2,7 @@
 mod display;
 mod exposure;
 mod info;
+mod region;
 mod result;
 mod sense;
 mod size;
@@ -241,6 +242,46 @@ pub unsafe extern "C" fn qj_result_page(result: *const RenderResult, x: u32, y: 
         }
     }))
     .unwrap_or(0)
+}
+
+/// 顺序读取已绘制交互区域；不包含阴影、空槽或无效翻页按钮。
+/// # Safety
+/// result 有效；out 指向可写 InteractionRegion，或任一参数为 null。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qj_result_region(
+    result: *const RenderResult,
+    index: u32,
+    out: *mut region::InteractionRegion,
+) -> bool {
+    if result.is_null() || out.is_null() {
+        return false;
+    }
+    catch_unwind(AssertUnwindSafe(|| {
+        let frame = &unsafe { &*result }.frame;
+        let found = frame
+            .image
+            .geometry
+            .candidates
+            .iter()
+            .map(|hit| (hit.rect, hit.row as i32))
+            .chain(frame.previous_page.map(|rect| (rect, -1)))
+            .chain(frame.next_page.map(|rect| (rect, -2)))
+            .nth(index as usize);
+        let Some((rect, action)) = found else {
+            return false;
+        };
+        unsafe {
+            *out = region::InteractionRegion {
+                x: rect.x,
+                y: rect.y,
+                width: rect.width,
+                height: rect.height,
+                action,
+            };
+        }
+        true
+    }))
+    .unwrap_or(false)
 }
 
 /// 顺序读取完整可见的义项，越界返回 false。

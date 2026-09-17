@@ -4,6 +4,12 @@
 
 ## 构建与安装
 
+2026-09-17 生产组件更新：`install.sh --gnome` 安装配套正式扩展，`--startup=session|background` 选择同名服务的启动模式，`--no-start` 禁止所有会话操作；自定义 prefix 自动进入只安装文件模式。文件先暂存并完成构建、CTest、资源校验，再逐文件 rename，逐代不可变旧文件与清单位于 `share/qingjian/rollback/generation-*` 和 `install-manifest.json`；复制或清单发布失败恢复旧版，旧回滚链不被删除。会话安装额外快照 session.json 和服务模式链接，回滚一并恢复。文件回滚命令为 `python3 <prefix>/share/qingjian/management/deploy.py --prefix <prefix> --rollback`；先停用自绘并停止 Server，再恢复匹配组件，最后用 `qingjian-session-setup` 登记服务、重新登录加载插件和扩展。回滚保留配置和学习数据。
+
+用户模式安装完成后调用 `qingjian-session-setup`。它迁移已知旧目标链接，默认链接 `graphical-session.target`，后台模式清除 PartOf 并链接 `default.target`；后台模式要求用户自行明确开启 linger，安装器从不更改它。未知 override、未知链接或用户/系统混合来源在写入前报告。已登记用户明确停用或屏蔽后，升级与登录入口保留该偏好；旧 Debian 用户没有 session.json 时使用首次迁移的账户身份快照（UID、账户名、家目录路径）识别。后续升级不扩大旧账户集合，升级后新建账户仍正常首次登记；root postinst 只读取账户数据库，不访问家目录或用户总线。服务迁移缺证据时保守保留 disabled。扩展使用独立证据：Shell 明确 disabled-extensions 或源码安装记录的 previous_extension 加当前 disabled；旧服务账户快照不能把首次加入的新扩展误判为停用。扩展发现延迟或首次启用失败保持 pending，每次登记重试都重新检查明确停用；显式 `--enable-extension` 可恢复，尚未发现或启用失败时保存 pending；之后新作出的明确停用仍优先；恢复启动使用 `--enable`，清除启动限速需要显式 `--recover`。只读诊断用 `qingjian-diagnose --json`，区分扩展 owner、软件 Painted 与真实 socket 握手。实际驻留插件记录 PID、设备/inode、deleted 和 reload_required，读不到驻留文件时哈希为 unknown；UI 状态快照只含后端、原因、倍率来源和尺寸，不写入文本或光标位置。
+
+Debian 打包默认包含 GNOME 50 扩展及 XDG 登录登记入口，`--minimal` 才省略扩展。root 包脚本不连接桌面总线；安装到当前会话后由桌面用户运行 `qingjian-session-setup --enable --enable-extension`，首次扩展未被发现时重新登录。不会自动重启 Shell、注销用户或改 Fcitx profile。下面较早的手工 `systemctl` 命令仍可用于排障；迁移/模式切换优先使用新入口。
+
 安装脚本同时构建 `qingjian-render-ffi` 并静态链接。普通构建包含可选 X11 后端，默认配置仍使用 Fcitx 面板；所有配置模式均可回退默认面板。直接 CMake 默认不链接 FFI，仍可独立运行原面板和生命周期测试。编译/链接错误会使构建失败，运行时绘制失败才执行回退。
 
 带自绘渲染器和 X11 后端的构建：

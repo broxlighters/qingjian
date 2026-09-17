@@ -7,6 +7,9 @@
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/instance.h>
 #include <vector>
+#if defined(QJ_GNOME_BACKEND)
+namespace qingjian::panel { class GnomeBridge; }
+#endif
 namespace fcitx {
 class QingjianEngine final : public InputMethodEngineV2 {
 public:
@@ -23,6 +26,10 @@ private:
     void render(InputContext *context, const nlohmann::json &frame);
     /// Fcitx 实例，负责 UI flush 和窗口事件。
     Instance *instance_;
+#if defined(QJ_GNOME_BACKEND)
+    /// 插件初始化时提前协商，保留实例级连接供所有上下文共用。
+    std::shared_ptr<qingjian::panel::GnomeBridge> gnomeBridge_;
+#endif
     /// 不复制组句；Fcitx 自动随 InputContext 回收属性。
     FactoryFor<qingjian::Session> sessions_;
     /// 桌面主题异步更新，只影响 system 外观的自绘帧。

@@ -11,6 +11,7 @@ public:
     bool open(xcb_connection_t *connection, xcb_window_t root);
     fcitx::Rect bounds(const fcitx::Rect &cursor);
     bool changed(const xcb_generic_event_t *event);
+    std::vector<fcitx::Rect> monitors() { if (dirty_) refresh(); return monitors_; }
 private:
     bool refresh();
     /// 借用窗口后端连接及 root，不独立创建 X 连接。

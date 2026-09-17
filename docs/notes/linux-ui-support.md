@@ -1,5 +1,9 @@
 # Linux 自绘候选面板支持矩阵
 
+2026-09-17 生产组件更新：FFI 普通构建新增 `Panel1` 共享异步桥接，完整 GNOME 包新增 `qingjian@qingjian.local`。显式 `renderer="qingjian"` 时只放行具有同源按键窗口证明的 dbus frontend；IBus和未知通路仍回退。生产 GTK 在隔离GNOME无X11会话通过单窗鼠标、同PID双窗、167%/100%跨输出与进程退出撤窗。XWayland新增全输出root→Shell几何倍率解析，无法联合校验时回退。默认仍为 `fcitx`，`auto` 仍关闭。
+
+这不是完整正式支持声明：目标应用的发行包矩阵、物理会话、同屏尺寸误差、受控可见延迟与Kimpanel恢复定位依赖均未完成。下面“无生产GNOME后端”等旧描述保留为历史构建记录；本轮代码与门禁以 [最新阶段记录](linux-gnome-stage0.md) 和 [协议](../design/linux-gnome-panel-protocol.md) 为准。
+
 记录日期：2026-09-17。已完成 C ABI、显示协议、后端选择器、可选 X11 承载与 Wayland 独立探针；前序 Linux 安装阶段的安装、卸载、资源校验和回退验收已完成，**尚无声明支持的自绘桌面路径**。自动化检查不能代替真实应用窗口测试。当前没有已验收的自绘路径，因此 `auto` 始终回退；`qingjian` 在可用 X11/XWayland 上请求自绘，原生 Wayland 继续回退。
 
 ## 应用与承载

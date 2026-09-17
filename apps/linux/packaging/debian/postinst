@@ -1,0 +1,6 @@
+#!/bin/sh
+# //! 只登记首次迁移时既有账户；不连接用户总线或读写家目录。
+set -eu
+if [ "$1" = configure ]; then
+    python3 /usr/share/qingjian/management/package_state.py --previous-version "${2:-}"
+fi

@@ -5,6 +5,7 @@
 #include "size.h"
 #include "gnome/identity/focus.h"
 #include "backend/base.h"
+#include "backend/submission.h"
 #include <fcitx-utils/event.h>
 #include <nlohmann/json.hpp>
 #include <functional>
@@ -13,6 +14,9 @@
 #include <string>
 namespace fcitx { class InputContext; }
 namespace qingjian::panel {
+#if defined(QJ_GNOME_BACKEND)
+class GnomePanel;
+#endif
 #if defined(QJ_GNOME_PROBE)
 class GnomeProbe;
 #endif
@@ -33,7 +37,10 @@ public:
                      std::function<void(const nlohmann::json &)> acknowledge,
                      std::function<void()> fallback, std::chrono::steady_clock::time_point ready,
                      bool systemDark = false, double systemTextScale = 1.0,
-                     bool textScaleKnown = false, const FocusIdentity &focusIdentity = {});
+                     bool textScaleKnown = false, const FocusIdentity &focusIdentity = {},
+                     std::function<void()> recover = {});
+    /// pending 与实际曝光分开；兼容现有同步 XCB 调用入口。
+    Submission submission() const;
     void registerCallback(fcitx::InputContext *context);
     void hide(fcitx::InputContext *context);
     void invalidate(fcitx::InputContext *context);
@@ -48,6 +55,8 @@ private:
     bool pollEvents(fcitx::InputContext *context, uint64_t submission, fcitx::IOEventFlags flags);
     bool checkHealth(fcitx::InputContext *context, uint64_t submission, fcitx::EventSourceTime *timer, uint64_t now);
     void releaseResult();
+    bool geometryChanged();
+    void redrawGeometry(fcitx::InputContext *context);
     void discardFrame(fcitx::InputContext *context, bool withdraw);
     /// 当前输入帧开始 UI 处理的时间，不包含 IPC 等待。
     std::chrono::steady_clock::time_point ready_;
@@ -66,6 +75,10 @@ private:
     /// 窗口随上下文销毁。
     std::shared_ptr<Backend> backend_;
 
+#if defined(QJ_GNOME_BACKEND)
+    std::unique_ptr<GnomePanel> gnomePanel_;
+#endif
+
 #if defined(QJ_GNOME_PROBE)
     /// 隔离测试专用，不参与生产自动选择。
     std::unique_ptr<GnomeProbe> gnomeProbe_;
@@ -79,6 +92,11 @@ private:
 
     /// 检查没有 X 事件的合成器 selection 丢失；隐藏时禁用。
     std::unique_ptr<fcitx::EventSourceTime> health_;
+
+    /// 输出异步更新期间撤下旧窗口，有界等待 XWayland 与 Shell 几何一致。
+    std::unique_ptr<fcitx::EventSourceTime> geometryTimer_;
+
+    std::vector<fcitx::Rect> shellMonitors_;
 
     /// 出错的生产连接在下一帧重建；测试注入承载由夹具恢复。
     bool backendFailed_ = false;
@@ -114,6 +132,8 @@ private:
 
     /// 渲染或窗口出错时重启现有默认面板更新。
     std::function<void()> fallback_;
+
+    std::function<void()> recover_;
 
     /// 借用已初始化渲染器；销毁/隐私边界不触发新的字体扫描。
     std::function<void()> clearTextCache_;

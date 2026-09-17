@@ -185,9 +185,17 @@ Server 每次轮询比对用户 `dicts\` 的路径 / mtime / 长度快照，配�
 
 用户安装脚本将插件的绝对路径写入 addon 配置的 `Library`，因为 Fcitx5 默认不会搜索 `~/.local/lib/fcitx5`。重新安装时按当前 prefix 重新生成该路径。
 
-Fcitx 面板先由 `backend/probe` 分类上下文 display，再由 `backend/selector` 创建承载；不读取会话类型猜后端。`QINGJIAN_X11_BACKEND` 默认 ON，最小安装显式 OFF（脚本 `--disable-x11`），旧实验缓存只迁移一次且新开关优先。`auto` 的真实验收表目前为空，默认仍 `fcitx`。X11 位图上限 1600×900，同尺寸复用 pixmap/BGRA 缓冲，仅上传首尾变化行包围区域，失败后完整重传；合成器 selection 每 250 ms 发起查询，通过 fd/定时器非阻塞轮询 reply，超过 1 秒无响应即回退，连接/工作区/合成器变化先隐藏并解除回调、再刷新默认面板，下帧重建失败连接。本地 submission 防止同一 Server identity 的重绘接收旧鼠标事件；事件派发持有后端共享寿命。阶段 0 Wayland 探针独立构建，结果与公开 API 结论见 [Wayland 承载核验](linux-wayland-api.md)。
+Fcitx 面板先由 `backend/probe` 分类上下文 display，再由 `backend/selector` 创建承载；不读取会话类型猜后端。`QINGJIAN_X11_BACKEND` 默认 ON，最小安装显式 OFF（脚本 `--disable-x11`），旧实验缓存只迁移一次且新开关优先。`auto` 的真实验收表目前为空，默认仍 `fcitx`。X11 位图上限 1600×900，同尺寸复用 pixmap/BGRA 缓冲，仅上传首尾变化行包围区域，失败后完整重传；合成器 selection 每 250 ms 发起查询，通过 fd/定时器非阻塞轮询 reply，超过 1 秒无响应即回退，连接/合成器故障先隐藏并解除回调、再刷新默认面板，下帧重建失败连接；RandR/工作区改变则作废旧命中，通过 Engine 当前有效帧自动重绘。XWayland 几何变更有界等待 Shell/RandR 联合解析，不等待新按键。本地 submission 防止同一 Server identity 的重绘接收旧鼠标事件；事件派发持有后端共享寿命。阶段 0 Wayland 探针独立构建，结果与公开 API 结论见 [Wayland 承载核验](linux-wayland-api.md)。
 
 `apps/linux/server` 使用独立产品版本 `0.1.0-dev`，Fcitx5 默认候选 UI。Core 的 `EngineSession` 仅保存输入状态，Router 按 SessionId 交换组句、历史、标点和学习链；词库、用户词频/用户词/个人 n-gram、统计与词汇记录共用进程内唯一实例，避免多个会话覆盖同一个文件。Unix socket 两端校验 UID，版本握手、连接编号重映射、断线回收、200 ms 客户端截止时间和候选帧版本检查都已接入。
+
+正式 GNOME 展示使用 `qingjian@qingjian.local` / `org.qingjian.Panel1`，与阶段 0 探针完全分开。Fcitx 实例共享异步 `GnomeBridge`；`GnomePanel` 用 Preparing/AwaitingPaint/Visible/Hiding/Fallback 状态、完整十进制字符串身份、最新帧合并、250 ms 绘制截止和 500 ms 租约处理连续所有权。密封 memfd 上限 1600×900 RGBA8 预乘；`Released`、`Prepared`、`Painted` 分开，只有当前 `Painted` 切换命中结果并报告曝光。有效交互矩形由 `qj_result_region` 导出，Shell 只给有效候选/翻页区建立指针子 Actor；无动作输入不关闭交互，正常空帧直接隐藏。生产扩展按入口、协议、焦点、几何、Actor 和服务拆分，协议见 [GNOME 候选位图协议](../design/linux-gnome-panel-protocol.md)。
+
+XWayland 只有在 X server 报告 XWAYLAND 且 RandR 全部输出与 Shell 全部逻辑输出能联合求出唯一 root→stage 比率时才使用该 raster；不从 Xft DPI 或单个客户端 scale 猜倍率。当前双屏证据得到统一 2:1；几何无法匹配时用 `scale_unresolved` 回退。原生 Shell 路径由目标 monitor 返回 raster，UI、文字和 raster 三种倍率仍分别应用。
+
+输出快照通过 `OutputsChanged(s)` 更新，与 Hello/传输 epoch 分离；连接 owner 代次和 Bind/Hide 代次独立。续约100 ms定时器精度为1 ms，实际 Painted 续展有效窗口凭证，避免跨屏继承快到期的旧租约。正常 XCB 隐藏、失焦和空帧写入 Idle 诊断；提交失败仍保留 Fallback。
+
+服务默认 unit 绑定 `graphical-session.target`，带启动限速与 15 秒停止期限；后台模式用安装器管理的 drop-in 和 `default.target` 链接，仍复用同一服务名/socket，要求用户预先明确启用 linger。`qingjian-session-setup` 迁移旧目标链接、保留停用/屏蔽及未知 override，`qingjian-diagnose` 只读报告 unit、socket、实际 Fcitx 映射、扩展 owner 和 Painted 状态。安装先暂存并逐文件 rename，不可变 generation 保存旧文件、manifest 和会话模式，发布失败恢复旧文件，多代清单供 `deploy.py --rollback`；自定义 prefix 与 `--no-start` 禁止会话操作。
 
 主词库、领域词库、释义、emoji、英文词表、LM 与样例按 `AssemblySpec` 装配；Linux 不启用云/神经重排。XDG 配置/数据/日志路径、安装/卸载、协议和验证命令详见 [Linux Fcitx5 工程记录](linux-fcitx5.md)。桌面兼容矩阵仍待实测。
 

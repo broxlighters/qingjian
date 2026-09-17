@@ -66,6 +66,13 @@ jobs:
           cmake -S apps/linux/probes/wayland -B target/wayland-probe
           cmake --build target/wayland-probe --parallel 2
 
+      - name: Test GNOME protocol and Linux management
+        run: |
+          node apps/linux/gnome/test.mjs
+          node apps/linux/probes/gnome/test.mjs
+          python3 apps/linux/tests/management.py
+          bash apps/linux/tests/uninstall.sh
+
   macos:
     runs-on: macos-latest
     steps:

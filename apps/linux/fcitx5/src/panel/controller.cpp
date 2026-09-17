@@ -2,8 +2,13 @@
 #include "controller.h"
 #include "backend/probe.h"
 #include "backend/selector.h"
+#include "backend/scale.h"
 #include "interaction/action.h"
 #include "update_guard.h"
+#include "status.h"
+#if defined(QJ_GNOME_BACKEND)
+#include "gnome/panel.h"
+#endif
 #if defined(QJ_GNOME_PROBE)
 #include "gnome/probe.h"
 #endif
@@ -46,6 +51,7 @@ bool x11Display(const std::string &display) {
 Controller::Controller(std::unique_ptr<Backend> backend)
     : backend_(std::move(backend)), injected_(bool(backend_)) {}
 Controller::~Controller() {
+    geometryTimer_.reset();
     health_.reset();
     io_.reset();
     if (backend_) backend_->hide();
@@ -56,11 +62,17 @@ void Controller::configure(RendererMode mode, fcitx::EventLoop *loop, SizeOption
     mode_ = mode;
     loop_ = loop;
     size_ = size;
+#if defined(QJ_GNOME_BACKEND)
+    if (loop_ && mode_ != RendererMode::Fcitx && !gnomePanel_) gnomePanel_ = std::make_unique<GnomePanel>(*loop_);
+#endif
 }
 bool Controller::eligible(fcitx::InputContext *context) const {
     return rejection(context) == nullptr;
 }
 bool Controller::canUpdate(fcitx::InputContext *context) const {
+#if defined(QJ_GNOME_BACKEND)
+    if (gnomePanel_ && gnomePanel_->owns() && GnomePanel::eligible(context)) return eligible(context);
+#endif
 #if defined(QJ_GNOME_PROBE)
     if (active_ && gnomeProbe_ && GnomeProbe::eligible(context)) return eligible(context);
 #endif
@@ -74,6 +86,10 @@ const char *Controller::rejection(fcitx::InputContext *context) const {
         context->capabilityFlags().test(fcitx::CapabilityFlag::Disable) ||
         context->capabilityFlags() == fcitx::CapabilityFlags()) return "私密或未知输入能力";
 #if defined(QJ_RENDER_FFI)
+    #if defined(QJ_GNOME_BACKEND)
+    if (mode_ == RendererMode::Qingjian && loop_ && GnomePanel::eligible(context)) return nullptr;
+    if (mode_ == RendererMode::Qingjian && !x11Display(context->display())) return "unsupported_frontend";
+    #endif
     #if defined(QJ_GNOME_PROBE)
     if (mode_ == RendererMode::Qingjian && loop_ && GnomeProbe::eligible(context)) return nullptr;
     #endif
@@ -99,8 +115,36 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
                              std::function<void(const nlohmann::json &)> acknowledge,
                              std::function<void()> fallback, std::chrono::steady_clock::time_point ready,
                              bool systemDark, double systemTextScale, bool textScaleKnown,
-                             [[maybe_unused]] const FocusIdentity &focusIdentity) try {
+                             [[maybe_unused]] const FocusIdentity &focusIdentity,
+                             [[maybe_unused]] std::function<void()> recover) try {
     const bool updating = canUpdate(context);
+    recordStatus({{"frontend", context ? context->frontendName() : "unknown"}, {"backend", "fcitx"},
+        {"ui_scale", size_.uiScale}, {"ui_source", "linux_ui.ui_scale_percent"}, {"system_text_scale", systemTextScale},
+        {"system_text_source", textScaleKnown ? "portal" : "default-unavailable"},
+        {"text_scale", size_.textScale(systemTextScale)},
+        {"text_source", !size_.followSystemTextScale ? "user-disabled" : textScaleKnown ? "portal" : "default-unavailable"},
+        {"raster_scale", nullptr}, {"raster_source", nullptr}, {"pixel_size", nullptr}, {"logical_size", nullptr},
+        {"context_scale", context ? context->scaleFactor() : 0.0}, {"state", "Preparing"}, {"painted", false}});
+#if defined(QJ_GNOME_BACKEND)
+    // GNOME 保留当前纹理与命中对象直到新 Painted；不能经过 XCB 的结果清理。
+    if (mode_ == RendererMode::Qingjian && loop_ && GnomePanel::eligible(context) && !rejection(context)) {
+        auto engine = renderer();
+        if (!engine) return unavailable("renderer_unavailable");
+        clearTextCache_ = [weak = std::weak_ptr<QjRenderer>(engine)] {
+            if (auto current = weak.lock()) qj_renderer_clear_text_cache(current.get());
+        };
+        if (!gnomePanel_) gnomePanel_ = std::make_unique<GnomePanel>(*loop_);
+        auto watched = context->watch();
+        const auto result = gnomePanel_->render({watched, engine, frame, identity, focusIdentity,
+            size_, systemTextScale, systemDark, std::move(valid), std::move(actionCallback),
+            std::move(acknowledge), [this, watched, fallback = std::move(fallback)] {
+                active_ = false;
+                if (watched.get() && fallback) fallback();
+            }, std::move(recover), textScaleKnown});
+        active_ = gnomePanel_->owns();
+        return result != Submission::Failed;
+    }
+#endif
     discardFrame(context, !updating);
     UpdateGuard cleanup([this, context] { hide(context); });
     ready_ = ready;
@@ -137,7 +181,18 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     const char *backendReason = "窗口承载不可用";
     if (!backend_) backend_ = openBackend(display_, &backendReason);
     if (!backend_) return unavailable(backendReason);
-    const auto scale = context->scaleFactor();
+    auto scale = context->scaleFactor();
+    const char *rasterSource = "x11-context";
+#if defined(QJ_GNOME_BACKEND)
+    if (backend_->xwayland()) {
+        const auto bridge = GnomeBridge::shared(*loop_);
+        const auto resolved = xwaylandRaster(backend_->monitors(), bridge->monitors());
+        if (!resolved) return unavailable("scale_unresolved");
+        scale = *resolved;
+        shellMonitors_ = bridge->monitors();
+        rasterSource = "xwayland-root-to-shell-geometry";
+    }
+#endif
     if (!std::isfinite(scale) || scale < 0.5 || scale > 4.0) return unavailable("缩放超出范围");
     const auto bounds = backend_->bounds(context->cursorRect());
     if (bounds.width() <= 0 || bounds.height() <= 0) return unavailable("没有有效的屏幕可用区域");
@@ -151,15 +206,21 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     if (!result_) return unavailable("位图渲染失败");
     QjImageInfo image{};
     if (!qj_result_image(static_cast<QjResult *>(result_), &image) ||
-        (image.width == 1 && image.height == 1)) { releaseResult(); return false; }
-    const auto diagnostic = nlohmann::json({{"backend", "xcb"}, {"frontend", context->frontend()},
-        {"coordinates", "x11-root-pixels"}, {"context_scale", scale},
-        {"raster_scale", scale}, {"raster_source", "context-unverified"},
+        (image.width == 1 && image.height == 1)) {
+        releaseResult();
+        recordStatus({{"backend", "xcb"}, {"state", "Idle"}, {"painted", false}});
+        return false;
+    }
+    const auto diagnosticValue = nlohmann::json({{"backend", "xcb"}, {"state", "Preparing"}, {"frontend", context->frontendName()},
+        {"coordinates", "x11-root-pixels"}, {"context_scale", context->scaleFactor()},
+        {"raster_scale", scale}, {"raster_source", rasterSource},
         {"output_scale", nullptr}, {"xft_dpi", nullptr}, {"ui_scale", size_.uiScale},
         {"system_text_scale", systemTextScale}, {"text_scale", textScale},
-        {"text_source", textScaleKnown ? "portal" : "default-unavailable"},
+        {"text_source", !size_.followSystemTextScale ? "user-disabled" : textScaleKnown ? "portal" : "default-unavailable"},
         {"pixel_size", {image.width, image.height}},
-        {"logical_size", {image.width / scale, image.height / scale}}}).dump();
+        {"logical_size", {image.width / scale, image.height / scale}}});
+    recordStatus(diagnosticValue);
+    const auto diagnostic = diagnosticValue.dump();
     if (sizeDiagnostic_ != diagnostic) {
         sizeDiagnostic_ = diagnostic;
         if (std::getenv("QINGJIAN_UI_DIAGNOSTICS")) FCITX_INFO() << "青简尺寸诊断：" << diagnostic;
@@ -169,17 +230,21 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     action_ = std::move(actionCallback);
     acknowledge_ = std::move(acknowledge);
     fallback_ = std::move(fallback);
+    recover_ = std::move(recover);
     previous_ = frame.value("page", 0U) > 0;
     next_ = frame.value("page", 0U) + 1 < frame.value("page_count", 1U);
     const auto submission = submission_;
+    const auto watchedContext = context->watch();
     io_ = loop_->addIOEvent(backend_->fd(), fcitx::IOEventFlags(fcitx::IOEventFlag::In) | fcitx::IOEventFlag::Err | fcitx::IOEventFlag::Hup,
-        [this, context, submission](fcitx::EventSourceIO *, int, fcitx::IOEventFlags flags) {
-            return pollEvents(context, submission, flags);
+        [this, watchedContext, submission](fcitx::EventSourceIO *, int, fcitx::IOEventFlags flags) {
+            auto *current = watchedContext.get();
+            return !current || pollEvents(current, submission, flags);
         });
     if (!io_) { hide(context); return unavailable("无法注册窗口事件"); }
     health_ = loop_->addTimeEvent(CLOCK_MONOTONIC, fcitx::now(CLOCK_MONOTONIC) + 250000, 0,
-        [this, context, submission](fcitx::EventSourceTime *timer, uint64_t now) {
-            return checkHealth(context, submission, timer, now);
+        [this, watchedContext, submission](fcitx::EventSourceTime *timer, uint64_t now) {
+            auto *current = watchedContext.get();
+            return !current || checkHealth(current, submission, timer, now);
         });
     if (!health_) { hide(context); return unavailable("无法注册窗口健康检查"); }
     registerCallback(context);
@@ -203,7 +268,10 @@ bool Controller::pollEvents(fcitx::InputContext *context, uint64_t submission, f
         !backend->poll([this, submission](int x, int y, unsigned b) {
             return submission == submission_ && click(x, y, b);
         });
-    if (failed && submission == submission_) fail(context);
+    if (submission == submission_) {
+        if (failed) fail(context);
+        else if (geometryChanged()) redrawGeometry(context);
+    }
     return true;
 } catch (const std::exception &) {
     if (submission == submission_) fail(context);
@@ -219,6 +287,7 @@ bool Controller::checkHealth(fcitx::InputContext *context, uint64_t submission, 
     });
     if (submission != submission_) return true;
     if (!ok) { fail(context); return true; }
+    if (geometryChanged()) { redrawGeometry(context); return true; }
     timer->setTime(now + 250000);
     timer->setEnabled(true);
     return true;
@@ -226,7 +295,52 @@ bool Controller::checkHealth(fcitx::InputContext *context, uint64_t submission, 
     if (submission == submission_) fail(context);
     return true;
 }
+bool Controller::geometryChanged() {
+    if (!backend_) return false;
+    if (backend_->takeGeometryChanged()) return true;
+#if defined(QJ_GNOME_BACKEND)
+    if (backend_->xwayland() && loop_) {
+        const auto bridge = GnomeBridge::shared(*loop_);
+        return !bridge->ready() || bridge->monitors() != shellMonitors_;
+    }
+#endif
+    return false;
+}
+void Controller::redrawGeometry(fcitx::InputContext *context) {
+    auto valid = valid_;
+    auto recover = recover_;
+    auto fallback = fallback_;
+    const auto watched = context->watch();
+    // 先提升本地 submission 并销毁命中，旧事件不能点击重新排版后的页面。
+    hide(context);
+    if (!valid || !valid()) return;
+    if (!recover) { if (fallback) fallback(); return; }
+    recordStatus({{"backend", "xcb"}, {"state", "Preparing"}, {"painted", false}});
+    const auto submission = submission_;
+    const auto deadline = fcitx::now(CLOCK_MONOTONIC) + 250000;
+    geometryTimer_ = loop_->addTimeEvent(CLOCK_MONOTONIC, fcitx::now(CLOCK_MONOTONIC), 0,
+        [this, watched, submission, deadline, valid, recover, fallback](auto *timer, uint64_t now) {
+            if (submission != submission_ || !watched.get() || !valid()) return false;
+            bool ready = true;
+#if defined(QJ_GNOME_BACKEND)
+            if (backend_->xwayland()) {
+                const auto bridge = GnomeBridge::shared(*loop_);
+                ready = bridge->ready() && xwaylandRaster(backend_->monitors(), bridge->monitors()).has_value();
+            }
+#endif
+            if (ready) { auto callback = recover; callback(); return false; }
+            if (now >= deadline) {
+                unavailable("scale_unresolved");
+                auto callback = fallback;
+                if (callback) callback();
+                return false;
+            }
+            timer->setTime(now + 10000); timer->setEnabled(true);
+            return true;
+        });
+}
 bool Controller::unavailable(const char *reason) {
+    recordStatus({{"backend", "fcitx"}, {"state", "Fallback"}, {"reason", reason}});
     if (mode_ != RendererMode::Fcitx && failure_ != reason) {
         failure_ = reason;
         FCITX_INFO() << "青简保留 Fcitx 面板：" << reason;
@@ -239,9 +353,9 @@ void Controller::registerCallback(fcitx::InputContext *context) {
 }
 void Controller::fail(fcitx::InputContext *context) {
     backendFailed_ = true;
-    unavailable("窗口提交或显示条件发生变化");
     auto fallback = fallback_;
     hide(context);
+    unavailable("窗口提交或显示条件发生变化");
     if (fallback) fallback();
 }
 void Controller::refresh(fcitx::InputContext *context) try {
@@ -258,6 +372,7 @@ void Controller::refresh(fcitx::InputContext *context) try {
         return;
     }
     active_ = true;
+    recordStatus({{"backend", "xcb"}, {"state", "Visible"}, {"painted", false}, {"reason", nullptr}});
     failure_.clear();
     if (std::getenv("QINGJIAN_UI_TIMINGS")) {
         const auto done = std::chrono::steady_clock::now();
@@ -304,6 +419,12 @@ void Controller::hide(fcitx::InputContext *context) {
     discardFrame(context, true);
 }
 void Controller::discardFrame(fcitx::InputContext *context, bool withdraw) {
+    if (withdraw && backend_ && (active_ || result_ || geometryTimer_))
+        recordStatus({{"backend", "xcb"}, {"state", "Idle"}, {"painted", false}});
+    geometryTimer_.reset();
+#if defined(QJ_GNOME_BACKEND)
+    if (gnomePanel_ && withdraw) gnomePanel_->hide();
+#endif
 #if defined(QJ_GNOME_PROBE)
     if (gnomeProbe_ && withdraw) gnomeProbe_->hide();
 #endif
@@ -314,7 +435,7 @@ void Controller::discardFrame(fcitx::InputContext *context, bool withdraw) {
     if (io_) io_->setEnabled(false);
     if (backend_) { if (withdraw) backend_->hide(); backend_->drain(); }
     releaseResult();
-    valid_ = {}; action_ = {}; acknowledge_ = {}; fallback_ = {};
+    valid_ = {}; action_ = {}; acknowledge_ = {}; fallback_ = {}; recover_ = {};
     if (context) context->inputPanel().setCustomInputPanelCallback({});
 }
 void Controller::invalidate(fcitx::InputContext *context) {
@@ -329,5 +450,12 @@ void Controller::invalidate(fcitx::InputContext *context) {
 }
 bool Controller::accepts(const FrameIdentity &identity) const {
     return active_ && identity_ == identity && valid_ && valid_();
+}
+Submission Controller::submission() const {
+#if defined(QJ_GNOME_BACKEND)
+    if (gnomePanel_ && gnomePanel_->owns()) return gnomePanel_->state() == DisplayState::Visible ?
+        Submission::Accepted : Submission::Pending;
+#endif
+    return active_ ? Submission::Accepted : Submission::Failed;
 }
 }

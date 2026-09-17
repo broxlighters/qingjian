@@ -1,0 +1,8 @@
+# //! 用户登录登记服务；不额外启动 Fcitx，也不重启 Shell。
+[Desktop Entry]
+Type=Application
+Name=青简会话设置
+Exec="@PREFIX@/bin/qingjian-session-setup" --login
+OnlyShowIn=GNOME;
+NoDisplay=true
+X-GNOME-Autostart-Phase=Applications

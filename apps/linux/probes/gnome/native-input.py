@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# //! 只给独立 headless GNOME 的 GTK 输入框发送固定测试文本。
+# //! 只给独立 headless GNOME 的测试应用发送固定文本，不连接用户会话。
 import os, json, time, subprocess as sp, re
 from pathlib import Path
 from gi.repository import Gio, GLib
@@ -13,8 +13,14 @@ assert os.environ.get("DISPLAY") is None
 os.environ["QJ_TEST_QT"] = "1" if os.environ.get("QINGJIAN_TEST_NATIVE") == "qt" else ""
 os.environ["QJ_TEST_BROWSER"] = "1" if os.environ.get("QINGJIAN_TEST_NATIVE") == "firefox" else ""
 root=Path(__file__).resolve().parents[4]
+production = bool(os.environ.get('QINGJIAN_TEST_PRODUCTION'))
+panel_bus = 'org.qingjian.Panel1' if production else 'org.qingjian.PanelProbe1'
+panel_path = '/org/qingjian/Panel1' if production else '/org/qingjian/PanelProbe1'
+panel_uuid = 'qingjian@qingjian.local' if production else 'qingjian-probe@qingjian.local'
 env=os.environ.copy()
 env.update(WAYLAND_DISPLAY="qingjian-test", GDK_BACKEND="wayland", GTK_IM_MODULE="fcitx", GTK_A11Y="none", GTK_USE_PORTAL="0", QINGJIAN_SOCKET=str(base/"qj.sock"), QINGJIAN_DICT=str(root/"assets/sample/dict.tsv"),QINGJIAN_RESOURCES=str(root),QINGJIAN_UI_DIAGNOSTICS="1",QINGJIAN_GNOME_PROBE="1")
+if production:
+ env.pop('QINGJIAN_GNOME_PROBE', None)
 for path in ("config/qingjian","config/fcitx5","data/fcitx5/addon","data/fcitx5/inputmethod"):(base/path).mkdir(parents=True,exist_ok=True)
 (base/"config/qingjian/config.toml").write_text('[general]\nlearning_language="en"\n[linux_ui]\nrenderer="qingjian"\n' +
  'ui_scale_percent='+env.get('QINGJIAN_TEST_UI_SCALE','100')+'\nfollow_system_text_scale='+env.get('QINGJIAN_TEST_FOLLOW_TEXT','true')+'\n')
@@ -32,8 +38,9 @@ def start(args,name):
   p=sp.Popen(args,env=env,stdout=log,stderr=log)
  processes.append(p)
  return p
-def until(pred):
- for _ in range(100):
+def until(pred, timeout=5):
+ deadline=time.monotonic()+timeout
+ while time.monotonic()<deadline:
   if pred():return
   time.sleep(.05)
  raise RuntimeError("就绪超时")
@@ -44,7 +51,7 @@ session=None
 try:
  scale=int(env.get('QINGJIAN_TEST_SCALE','100'))
  if scale != 100 or env.get('QINGJIAN_TEST_MOVE_OUTPUT'):
-  configure_display(bus,base,1.5 if scale==150 else 5/3,dual=bool(env.get('QINGJIAN_TEST_MOVE_OUTPUT')))
+  configure_display(bus,base,5/3 if scale==167 else scale/100,dual=bool(env.get('QINGJIAN_TEST_MOVE_OUTPUT')))
  if env.get('QINGJIAN_TEST_TEXT_SCALE'):start_settings(bus,base,env,start,float(env['QINGJIAN_TEST_TEXT_SCALE']))
  start([os.environ["QINGJIAN_TEST_SERVER"]],"server")
  fallback=bool(env.get('QINGJIAN_TEST_FALLBACK'))
@@ -63,6 +70,19 @@ try:
   (profile/"user.js").write_text('user_pref("browser.shell.checkDefaultBrowser",false);\nuser_pref("browser.startup.firstrunSkipsHomepage",true);\nuser_pref("browser.startup.homepage_override.mstone","ignore");\nuser_pref("datareporting.policy.dataSubmissionPolicyBypassNotification",true);\n')
   start([os.environ["QINGJIAN_TEST_FIREFOX"],"--no-remote","--new-instance","--profile",str(profile),"--kiosk",page.as_uri()],"firefox")
   time.sleep(5)
+ elif env.get('QINGJIAN_TEST_NATIVE') == 'terminal':
+  receiver=base/'fixed-terminal.py'
+  receiver.write_text("import json,sys,time\nfrom pathlib import Path\np=Path(sys.argv[1])\np.write_text('{}')\ntext=input()\np.write_text(json.dumps({'text':text,'application':'ptyxis'},ensure_ascii=False))\ntime.sleep(10)\n")
+  start(['ptyxis','--standalone','--new-window','--','/usr/bin/python3',str(receiver),str(base/'entry.json')],'terminal')
+  until(lambda:(base/'entry.json').exists(),15)
+ elif env.get('QINGJIAN_TEST_NATIVE') == 'editor':
+  document=base/'fixed-input.txt'
+  document.write_text('')
+  editor=start(['gnome-text-editor','--new-window',str(document)],'editor')
+  def editor_focused():
+   current=json.loads(bus.call_sync(panel_bus,panel_path,panel_bus,'TestState',None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
+   return current.get('pid') == editor.pid
+  until(editor_focused)
  else:
   start(["/usr/bin/python3",str(root/("apps/linux/probes/gnome/fixtures/qt.py" if os.environ.get("QJ_TEST_QT") else "apps/linux/probes/gnome/fixtures/gtk.py")),str(base/"entry.json")],"gtk")
   until(lambda:(base/"entry.json").exists())
@@ -84,7 +104,7 @@ try:
   time.sleep(.5)
  time.sleep(.5)
  def state():
-  return json.loads(bus.call_sync("org.qingjian.PanelProbe1","/org/qingjian/PanelProbe1","org.qingjian.PanelProbe1","TestState",None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
+  return json.loads(bus.call_sync(panel_bus,panel_path,panel_bus,"TestState",None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
  def key(sym):
   for pressed in (True,False):call(session,"org.gnome.Mutter.RemoteDesktop.Session","NotifyKeyboardKeysym",GLib.Variant("(ub)",(sym,pressed)))
  def click(x,y,pointer):
@@ -103,7 +123,7 @@ try:
    original=before
    for output in (1,0):
     began=time.monotonic()
-    bus.call_sync('org.qingjian.PanelProbe1','/org/qingjian/PanelProbe1','org.qingjian.PanelProbe1','TestMove',
+    bus.call_sync(panel_bus,panel_path,panel_bus,'TestMove',
      GLib.Variant('(u)',(output,)),None,Gio.DBusCallFlags.NONE,3000,None)
     time.sleep(.4)
     moved=state();print('OUTPUT_MOVED',json.dumps({'monitor':output,'elapsed_ms':(time.monotonic()-began)*1000,'state':moved}))
@@ -111,7 +131,7 @@ try:
     assert abs(moved['actor'][2]-original['actor'][2])<1 and abs(moved['actor'][3]-original['actor'][3])<1,moved
     before=moved
   if env.get('QINGJIAN_TEST_SCREENSHOT'):
-   path=bus.call_sync('org.qingjian.PanelProbe1','/org/qingjian/PanelProbe1','org.qingjian.PanelProbe1','TestCapture',
+   path=bus.call_sync(panel_bus,panel_path,panel_bus,'TestCapture',
     None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0]
    print('SCREENSHOT',path)
   if fallback:
@@ -119,7 +139,7 @@ try:
     return json.loads(bus.call_sync('org.kde.impanel','/org/kde/impanel','org.kde.impanel','TestState',None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
    assert not default_state()['visible'],default_state()
    began=time.monotonic()
-   bus.call_sync('org.gnome.Shell','/org/gnome/Shell','org.gnome.Shell.Extensions','DisableExtension',GLib.Variant('(s)',('qingjian-probe@qingjian.local',)),None,Gio.DBusCallFlags.NONE,3000,None)
+   bus.call_sync('org.gnome.Shell','/org/gnome/Shell','org.gnome.Shell.Extensions','DisableExtension',GLib.Variant('(s)',(panel_uuid,)),None,Gio.DBusCallFlags.NONE,3000,None)
    def recovered():
     try:
      value=default_state();return value['visible'] and value['mapped']
@@ -150,7 +170,7 @@ try:
  before=input_cycle()
  if fallback:
   bus.call_sync('org.gnome.Shell','/org/gnome/Shell','org.gnome.Shell.Extensions','EnableExtension',
-   GLib.Variant('(s)',('qingjian-probe@qingjian.local',)),None,Gio.DBusCallFlags.NONE,3000,None)
+   GLib.Variant('(s)',(panel_uuid,)),None,Gio.DBusCallFlags.NONE,3000,None)
   def restored():
    try:state();return True
    except GLib.Error:return False
@@ -179,10 +199,19 @@ try:
   inject_fault(bus,fcitx_process,state,until,env['QJ_TEST_FAULT'])
   raise SystemExit(0)
  if os.environ.get("QJ_TEST_BROWSER"):
-  state=json.loads(bus.call_sync("org.qingjian.PanelProbe1","/org/qingjian/PanelProbe1","org.qingjian.PanelProbe1","TestState",None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
+  state=json.loads(bus.call_sync(panel_bus,panel_path,panel_bus,"TestState",None,None,Gio.DBusCallFlags.NONE,3000,None).unpack()[0])
   print(json.dumps(state,ensure_ascii=False))
   assert state["title"].startswith("QJ:你好:QJ-END"),state
   raise SystemExit(0)
+ if env.get('QINGJIAN_TEST_NATIVE') == 'editor':
+  for sym,pressed in [(65507,True),(ord('s'),True),(ord('s'),False),(65507,False)]:
+   call(session,'org.gnome.Mutter.RemoteDesktop.Session','NotifyKeyboardKeysym',GLib.Variant('(ub)',(sym,pressed)))
+  until(lambda: document.read_text().strip() == '你好')
+  print(json.dumps({'text':document.read_text().strip(),'application':'gnome-text-editor'},ensure_ascii=False))
+  raise SystemExit(0)
+ if env.get('QINGJIAN_TEST_NATIVE') == 'terminal':
+  key(65293)
+  until(lambda:json.loads((base/'entry.json').read_text()).get('text') == '你好')
  state=json.loads((base/"entry.json").read_text())
  print(json.dumps(state,ensure_ascii=False))
  assert (state["text"]==("你好你好" if env.get("QINGJIAN_TEST_FALLBACK") else "你好") if scenario=="single" else sorted(state["texts"])==["你好","你好你好"]),state

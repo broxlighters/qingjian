@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <unistd.h>
 #include <vector>
+#include <utility>
 class MemoryBackend final : public qingjian::panel::Backend {
 public:
     MemoryBackend() { assert(pipe2(pipe_, O_NONBLOCK) == 0); }
@@ -31,14 +32,17 @@ public:
     bool poll(const std::function<bool(int, int, unsigned)> &click) override {
         auto events = pending;
         drain();
-        for (const auto &event : events)
+        if (!changed) for (const auto &event : events)
             if (!click(event[0], event[1], event[2])) break;
         if (afterPoll) afterPoll();
         return true;
     }
     int fd() const override { return pipe_[0]; }
     bool healthy() override { return healthyConnection; }
+    bool takeGeometryChanged() override { return std::exchange(changed, false); }
     bool healthyConnection = true;
+
+    bool changed = false;
 
     /// 当前是否成功提交位图。
     bool shown = false;

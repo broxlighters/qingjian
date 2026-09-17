@@ -3,16 +3,16 @@
 安装：sudo apt install ./qingjian-fcitx5_<版本>_<架构>.deb
 
 按本机动态库自动声明最低依赖；Ubuntu 26.04 上构建的包不保证能在旧发行版运行。
-默认仍使用 Fcitx 候选窗口；包内包含 X11/XWayland 自绘承载，配置 renderer="qingjian" 时尝试启用。
-原生 Wayland 与 GNOME 搜索继续使用默认面板，auto 在真实桌面和性能验收完成前也保留默认面板。
+默认仍使用 Fcitx 候选窗口；包内包含 X11/XWayland 承载及 GNOME 50 配套扩展，配置 renderer="qingjian" 时只在已证明的 D-Bus frontend 尝试自绘。
+IBus、GNOME 搜索及未证明的 frontend 继续使用默认面板；auto 在完整应用和性能验收完成前保留默认面板。
 
 首次启动（以桌面用户运行，不要 sudo）：
-  systemctl --user daemon-reload
-  systemctl --user enable --now qingjian-linux-server.service
+  qingjian-session-setup --enable --enable-extension
   fcitx5 -rd
 
 随后在 Fcitx5 配置工具添加“青简”。升级后需要重启青简服务和 Fcitx5。
-服务位于 /usr/lib/systemd/user/；安装包不会自动启用或修改用户输入法列表。
+服务位于 /usr/lib/systemd/user/；GNOME 登录入口会幂等登记服务并保留明确停用选择，不修改用户输入法列表。
+首次安装扩展后若 Shell 尚未发现它，需要重新登录。Wayland 会话不会被安装包自动重启或注销。
 无 systemd 用户会话时，可在终端运行 /usr/bin/qingjian-linux-server。
 
 从源码用户安装迁移时，~/.local 的插件和服务会优先于系统包。
@@ -20,7 +20,7 @@
 再按上面的命令启动系统包。不要混用两种安装；不要用该脚本卸载系统包。
 
 卸载前（以桌面用户运行）：
-  systemctl --user disable --now qingjian-linux-server.service
+  qingjian-session-setup --disable
 卸载：sudo apt remove qingjian-fcitx5
 卸载后：systemctl --user daemon-reload
 在 Fcitx5 配置工具移除青简并重启 Fcitx5。

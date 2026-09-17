@@ -4,11 +4,14 @@ set -euo pipefail
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd)
 output_dir="$repo_root/target/deb"
 sample=false
+gnome=true
 while (($#)); do
   case "$1" in
     --output) output_dir=${2:?--output 需要绝对目录}; shift 2 ;;
     --sample) sample=true; shift ;;
-    --help) echo '用法：package-deb.sh [--output 绝对目录] [--sample]'; exit 0 ;;
+    --gnome) gnome=true; shift ;;
+    --minimal) gnome=false; shift ;;
+    --help) echo '用法：package-deb.sh [--output 绝对目录] [--sample] [--minimal]'; exit 0 ;;
     *) echo "未知参数：$1" >&2; exit 2 ;;
   esac
 done
@@ -46,8 +49,14 @@ stage="$work_dir/debian/qingjian-fcitx5"
 packaging="$repo_root/apps/linux/packaging/debian"
 export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git -C "$repo_root" show -s --format=%ct HEAD)}
 # 先只复制样例和基础资源，再显式挑选产品文件，避免打入原始语料或续跑数据。
-"$repo_root/apps/linux/scripts/install.sh" --prefix "$stage/usr" --sample
+install_args=(--prefix "$stage/usr" --sample --no-start)
+[[ "$gnome" = false ]] || install_args+=(--gnome)
+"$repo_root/apps/linux/scripts/install.sh" "${install_args[@]}"
 resources="$stage/usr/share/qingjian/resources"
+# 运行只读参数入口以验证模块依赖完整；--help 不连接用户总线或服务。
+PYTHONDONTWRITEBYTECODE=1 "$stage/usr/bin/qingjian-session-setup" --help >/dev/null
+PYTHONDONTWRITEBYTECODE=1 "$stage/usr/bin/qingjian-diagnose" --help >/dev/null
+[[ -f "$stage/usr/share/qingjian/management/package_state.py" ]] || { echo '缺少系统包迁移模块' >&2; exit 1; }
 if [[ "$sample" = false ]]; then
   for name in dict.qj lm.qj glossary-en.qj glossary-ja.qj glossary-zh.qj glossary-es.qj english.tsv english-frequency.tsv; do
     if [[ -f "$repo_root/data/generated/$name" ]]; then
@@ -63,6 +72,12 @@ fi
 mkdir -p "$stage/usr/lib/$multiarch/fcitx5" "$stage/usr/lib/systemd/user"
 mv "$stage/usr/lib/fcitx5/qingjian.so" "$stage/usr/lib/$multiarch/fcitx5/qingjian.so"
 rmdir "$stage/usr/lib/fcitx5"
+if [[ "$gnome" = true ]]; then
+  mkdir -p "$stage/etc/xdg/autostart"
+  sed 's|@PREFIX@|/usr|g' "$repo_root/apps/linux/data/qingjian-session-setup.desktop.in" > "$stage/etc/xdg/autostart/qingjian-session-setup.desktop"
+  rm -rf "$stage/usr/etc"
+fi
+rm -rf "$stage/usr/share/qingjian/rollback" "$stage/usr/share/qingjian/install-manifest.json"
 sed "s|^Library=.*|Library=/usr/lib/$multiarch/fcitx5/qingjian|" \
   "$repo_root/apps/linux/fcitx5/data/addon/qingjian.conf" > "$stage/usr/share/fcitx5/addon/qingjian.conf"
 sed 's|@PREFIX@|/usr|g' "$repo_root/apps/linux/data/qingjian-linux-server.service.in" \
@@ -77,6 +92,7 @@ path.parent.parent.rmdir()
 PY_SERVICE
 strip --strip-unneeded "$stage/usr/bin/qingjian-linux-server" "$stage/usr/lib/$multiarch/fcitx5/qingjian.so"
 mkdir -p "$stage/DEBIAN" "$stage/usr/share/doc/qingjian-fcitx5"
+install -m755 "$packaging/postinst" "$stage/DEBIAN/postinst"
 cp "$packaging/control" "$work_dir/debian/control"
 awk 'seen || /^Package:/{seen=1} seen' "$packaging/control" > "$stage/DEBIAN/control"
 shlibs=$(cd "$work_dir" && dpkg-shlibdeps -O \
