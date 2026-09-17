@@ -23,6 +23,7 @@ impl Component for Settings {
             path,
             page: "general".to_string(),
             cloud_status: CloudStatus::Idle,
+            dictionary_status: String::new(),
             families: qingjian_render::system_fonts::families(),
             font_query: None,
         }
@@ -45,6 +46,7 @@ impl Component for Settings {
                 self.save("general", "shuangpin", general::SHUANGPIN[i].1);
             }
             Message::Zhuyin(on) => self.save("general", "zhuyin", on),
+            Message::Traditional(on) => self.save("general", "traditional", on),
             Message::EnglishCandidates(on) => self.save("general", "english_candidates", on),
             Message::ChineseFirst(on) => self.save("general", "chinese_first", on),
             Message::FullWidthPunctuation(on) => {

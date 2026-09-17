@@ -232,6 +232,7 @@ fn build_engine(args: &Args) -> Result<Engine, CliError> {
     if config.fuzzy.any() {
         tracing::info!(rules = ?config.fuzzy, "模糊音已启用");
     }
+    engine.set_traditional_mode(config.general.traditional);
     engine.set_fuzzy(config.fuzzy);
     engine.set_mode_keys(config.shortcut.mode);
     if let Some(scheme) = &args.shuangpin {

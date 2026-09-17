@@ -23,6 +23,9 @@ pub struct GeneralPage {
     /// 双拼方案（第 0 项是关）。
     shuangpin: Retained<NSPopUpButton>,
 
+    /// 繁体输出模式。
+    traditional: Retained<NSButton>,
+
     /// 英文模式也给候选。
     english: Retained<NSButton>,
 
@@ -47,9 +50,11 @@ impl GeneralPage {
         target: &PreferencesTarget,
         languages: &[Language],
     ) -> Self {
+        // 最后一项是关
         let language_titles: Vec<String> = languages
             .iter()
             .map(|l| language_label(*l).to_owned())
+            .chain(std::iter::once("不显示译文".to_owned()))
             .collect();
         let learning_language = row_popup(
             layout,
@@ -62,7 +67,7 @@ impl GeneralPage {
         note(
             layout,
             mtm,
-            "候选词右侧显示哪种语言的译词，只列出安装了释义表的语言。",
+            "候选词右侧显示哪种语言的译词，只列出安装了释义表的语言；「不显示译文」同时关掉生词标记与释义兜底。",
         );
         let page_size_titles: Vec<String> = (1..=MAX_PAGE_SIZE).map(|n| n.to_string()).collect();
         let page_size = row_popup(
@@ -102,6 +107,8 @@ impl GeneralPage {
             mtm,
             "仅影响标点，字母和数字保持半角；自定义短语原样输出。设置会保存。 ",
         );
+        let traditional = checkbox(mtm, "繁体输出", Setting::Traditional, target);
+        row_checkbox(layout, &traditional);
         let english = checkbox(
             mtm,
             "英文模式（Caps Lock）也给候选",
@@ -142,6 +149,7 @@ impl GeneralPage {
             learning_language,
             page_size,
             shuangpin,
+            traditional,
             english,
             english_off_in_apps,
             chinese_first,
@@ -158,9 +166,13 @@ impl GeneralPage {
         );
         select(
             &self.learning_language,
-            self.languages
-                .iter()
-                .position(|l| l.code() == general.learning_language),
+            if general.learning_language_off() {
+                Some(self.languages.len())
+            } else {
+                self.languages
+                    .iter()
+                    .position(|l| l.code() == general.learning_language)
+            },
         );
         select(&self.page_size, Some(general.page_size() - 1));
         select(
@@ -172,6 +184,7 @@ impl GeneralPage {
                     .map_or(0, |i| i + 1)
             })),
         );
+        set_checked(&self.traditional, general.traditional);
         set_checked(&self.english, general.english_candidates);
         set_checked(
             &self.english_off_in_apps,

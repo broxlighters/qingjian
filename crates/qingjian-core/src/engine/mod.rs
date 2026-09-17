@@ -236,6 +236,15 @@ pub struct Engine {
 
     /// emoji 表，没有就不出 emoji 候选。
     emoji: Option<EmojiTable>,
+
+    /// 繁体输出模式。
+    traditional: bool,
+
+    /// 繁体转换器。
+    opencc: Option<ferrous_opencc::OpenCC>,
+
+    /// 繁体输出时「繁体 → 原简体」的映射，组句结束清空；学习、译词、撤销都按简体原文走。
+    traditional_map: std::cell::RefCell<HashMap<String, String>>,
 }
 
 /// 英文补全最多几条（`compa` → company / compare / …）。
@@ -364,6 +373,9 @@ impl Engine {
             shuangpin: None,
             zhuyin: false,
             emoji: None,
+            traditional: false,
+            opencc: None,
+            traditional_map: std::cell::RefCell::new(HashMap::new()),
         }
     }
 }
