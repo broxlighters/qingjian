@@ -1,4 +1,4 @@
-# Fcitx 5.1.19 popup API 本地提案
+# Fcitx 5.1.19 独立本地提案
 
 这是方案第 5.1 节的独立本地实现，已通过本轮 reviewer 审查，记录见 [审查记录](../../../../docs/notes/linux-dual-ui-review.md)。未发送上游、未发布 PR，未接入青简生产构建，也不代表 GNOME/KDE 或整套双模式验收通过。补丁新增代码采用上游 `LGPL-2.1-or-later`，不复制整个上游树或生成协议文件。
 
@@ -74,4 +74,29 @@ ctest --test-dir "$task_root/tests" --output-on-failure
 
 相同源码用 `-fsanitize=address,undefined -fno-omit-frame-pointer` 分别配置独立 `build-asan` 和 `popup-tests-asan`，上游两个 addon、Core/Config/Utils 和测试全部重新编译；`ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=halt_on_error=1 ctest ...` 六项通过。现有日志在 `target/dual-ui/upstream/{build-popup,test,test-asan}.log`。
 
-这些测试不运行真实 GNOME/KDE compositor，不证明光标定位、鼠标、缩放、多屏、默认面板互斥或首帧可见时间。GNOME 没有该 input-method 协议时仍回退，Shell 扩展没有实现；KDE/其他 compositor 尚无实机记录。Wayland backend 与 `auto` 的生产门槛保持未通过。
+这些测试不运行真实 GNOME/KDE compositor，不证明光标定位、鼠标、缩放、多屏、默认面板互斥或首帧可见时间。GNOME 没有该 input-method 协议时仍回退；此popup提案不含Shell扩展（另有显式启用的阶段0 GNOME原型）；KDE/其他 compositor 尚无实机记录。Wayland backend 与 `auto` 的生产门槛保持未通过。
+
+
+## Kimpanel 恢复光标的独立实验补丁
+
+`fcitx5-5.1.19-kimpanel-resume.patch`与上面的popup API互相独立，不要为此先应用popup patch。GNOME Kimpanel重载时，Fcitx `resume()`异步查询relative协议能力，却只订阅将来的光标变化；客户端相同矩形被去重，已有候选恢复到屏幕左上角。补丁在Introspect完成后用既有cursor方法刷新当前focused IC，查询期间不把relative位置当绝对屏幕位置，suspend取消查询。它不更改候选、提交、焦点或坐标算法，新增代码沿用上游LGPL-2.1-or-later。
+
+只在私有夹具加载，没有安装系统、进入青简生产依赖或发送上游。构建脚本校验上述完整归档SHA256、系统SDK5.1.19和同版本上游CMake生成的config.h，在必须不存在的新目录解包/apply/reverse-check/拒绝重复apply，再编译一个链接系统Fcitx库的`libkimpanel.so`；归档、patch、config和二进制哈希保存在build.json。config-dir可使用前节正常configure后生成的目录，不需要应用popup patch。
+
+```sh
+python3 apps/linux/upstream/fcitx5/build-kimpanel.py \
+  target/dual-ui/fcitx5-5.1.19-complete.tar.gz \
+  --config-dir target/dual-ui/upstream/build \
+  --output target/gnome-kimpanel-reproduce
+cargo build -p qingjian-linux-server --release --locked
+python3 apps/linux/probes/gnome/run-shell.py \
+  --extension apps/linux/probes/gnome/extension --native gtk --mouse \
+  --addon target/gnome-candidate-probe/qingjian.so \
+  --server target/release/qingjian-linux-server \
+  --fallback --kimpanel target/gnome-identity/kimpanel-src \
+  --fcitx-kimpanel target/gnome-kimpanel-reproduce/libkimpanel.so
+```
+
+`--kimpanel`指明确提供的原始GNOME扩展源码，本轮commit `b1e7718f445666cbe4e19ead8422f316e8cb3e39`；只在私有副本加TestState并记录源文件哈希。`--fcitx-kimpanel`指本补丁生成的Fcitx addon，两者不同。移除后者即可复现原装Fcitx恢复位置错误；原装已有可见/点击/重新接管闭环，但不能算定位通过。带补丁时还断言relative spot与实际候选位置，最后恰好“你好你好”。
+
+2026-09-17 coder/reviewer独立运行：修复前第一项`[13,71,...]`；修复后`[375,397,...]`（同场青简Actor原点`[368,465]`），各110.8/142.8ms内观察默认恢复，鼠标选词、重启青简扩展、新输入自绘选词均通过。该毫秒数包含轮询粒度，仅是两次隔离样本。原始结果摘要、构建hash见[GNOME证据](../../../../docs/notes/linux-gnome-evidence/README.md)，不替代物理桌面/完整故障验收。

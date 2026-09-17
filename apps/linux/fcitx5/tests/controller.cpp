@@ -47,9 +47,25 @@ int main() {
     context.inputPanel().customInputPanelCallback()(&context);
     assert(memory->shown && acknowledgments == 1 && controller.accepts(id));
     assert(!controller.accepts({2, "context", 5}));
+    // 连续有效帧保留映射，仅作废旧动作；不得触发unmap/map长尾。
+    const auto hidesBeforeUpdate = memory->hides;
+    const auto ackBeforeUpdate = acknowledgments;
+    assert(controller.canUpdate(&context) && render());
+    assert(memory->shown && memory->hides == hidesBeforeUpdate && !controller.active());
+    assert(!controller.accepts(id));
+    controller.refresh(&context);
+    assert(controller.active() && memory->hides == hidesBeforeUpdate && acknowledgments == ackBeforeUpdate + 1);
+    // 更新期间非法布局失败必须撤下旧窗口和callback。
+    auto brokenFrame = frame;
+    brokenFrame["layout"] = "invalid";
+    assert(!controller.renderFrame(&context, brokenFrame, id, [&] { return valid; }, [](int) {},
+        [](const nlohmann::json &) {}, [] {}, std::chrono::steady_clock::now()));
+    assert(!memory->shown && !context.inputPanel().customInputPanelCallback());
+    assert(render());
+    controller.refresh(&context);
     valid = false;
     controller.refresh(&context);
-    assert(!memory->shown && !controller.active() && acknowledgments == 1);
+    assert(!memory->shown && !controller.active() && acknowledgments == ackBeforeUpdate + 2);
     valid = true;
     assert(render());
     memory->fail = true;

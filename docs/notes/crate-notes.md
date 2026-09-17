@@ -92,6 +92,8 @@ Engine 侧在 `engine/rescoring/`：接了打分器就取 Viterbi 前 `RESCORE_P
 
 ## crates/qingjian-render
 
+Linux 尺寸扩展在 `render-ffi` 主题副本分别应用用户 UI 倍率 `u` 与文字倍率 `t`：字体/行高乘 `u×t`，主题间距/圆角乘 `u`，`Theme.decoration_scale` 让固定云朵、光标、间距及有界面板阴影同样乘 `u`；最后由独立栅格倍率 `r` 渲染。共享主题 `decoration_scale=1`，其他平台默认输出不变。`qj_renderer_render_sized` 通过独立 `SIZE_ABI_VERSION=1` 校验参数，原 `qj_renderer_render` ABI v1 仍固定 `u=t=1`。Linux `LinuxHello` v1 以可选 `size_version=1` 传配置，缺字段按默认处理；不改公共候选协议。
+
 自绘渲染器：候选窗一帧 + 主题 → 预乘 RGBA 位图，tiny-skia 栅格 + cosmic-text 文字（fontdb 按平台清单只加载几个字体文件、不扫系统），
 自己解析 `trak` 字距表、按主题 gamma 加深笔画；cosmic-text 打了 `opsz` 光学字号补丁（qingjian-team/cosmic-text 分支 `qingjian-opsz`，workspace `[patch.crates-io]` 钉 rev）。
 `examples/preview.rs` 出 PNG 与真机截图并排比、`--measure` 与 AppKit 对宽度。mac 壳 `candidates/bitmap/` 贴位图，`[general] renderer = "system"` 切回 AppKit 绘制
@@ -194,3 +196,14 @@ Linux 的 `Privacy` 实际变化会调用 Core `discard_input`，无痕丢弃该
 ### Fcitx popup API 本地提案
 
 `apps/linux/upstream/fcitx5/` 保存固定 5.1.19 归档的最小 `waylandim` popup 公共 API patch、公开头消费者和 libwayland-server 生命周期夹具。它只支持激活匹配的 v2 context，Fcitx 独占连接 reader，surface/role 在同连接内创建；失效回调先撤窗再通知消费者销毁自有 buffer/callback。patch 可用 `check-patch.py` 重复应用校验，六项普通/ASan 测试通过。该提案未进入青简生产构建，真实 GNOME/KDE gate 未通过。
+
+
+### GNOME窗口身份与尺寸实验
+
+`QINGJIAN_GNOME_PROBE=ON`显式构建且运行时`QINGJIAN_GNOME_PROBE=1`才接入阶段0桥接，正常安装不启用。dbusfrontend的真实KeyEvent调用栈中，经公开`ObjectVTableBase::currentMessage()`复制已校验消息来源和IC UUID/epoch；Shell以窗口`notify::user-time`中的同源键事件证明窗口，PID仅作辅证。原型v2绑定总线daemon、sender/path、窗口对象及两端焦点代次；500ms/32条内存历史、单次签发墓碑，Withdraw保留有效proof，Hide撤销。无匹配事件的user-time校正不误当新键；IBus消息没有时间戳，仍默认回退。
+
+Shell在monitor/workarea/raster变化时先撤纹理/点击再发GeometryChanged；插件用新submission重新读弱引用IC cursor/scale、Bind并栅格化，旧Painted/Pointer不复用。连续几何重试共用250ms截止，准备过程不续proof；有效显示每100ms最多一个Renew，lease500ms。仍为逐帧准备原型，不是正式连续所有权或默认启用条件。
+
+Linux`ui_scale_percent`75..200和`follow_system_text_scale`经Server可选协商与独立sized ABI进入renderer。布局间距用UI倍率、文字另乘portal文字倍率、像素独立乘raster；其余平台旧ABI保持默认。Appearance在FFI/noX11构建也初始化。capability变更仅撤自己拥有的callback，对仍打开的青简会话重建默认帧；未打开或其它IME的回调不碰。
+
+`fcitx5-5.1.19-kimpanel-resume.patch`是独立上游实验：Kimpanel恢复时在异步relative协议查询完成后刷新现有cursor，suspend取消查询；没有向产品壳添加假FocusIn或固定延迟。`build-kimpanel.py`校验归档/SDK5.1.19，在新目录编译独立addon；只能由隔离`--fcitx-kimpanel`夹具显式加载，不是发行依赖。实现和证据边界见[GNOME阶段0记录](linux-gnome-stage0.md)。

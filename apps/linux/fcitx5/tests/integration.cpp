@@ -13,6 +13,11 @@
 #include <cstring>
 #include <filesystem>
 #include <thread>
+#if defined(QJ_TEST_VIRTUAL_KEYBOARD)
+#include <fcitx/userinterfacemanager.h>
+// 夹具替换公开查询，验证插件遇到已可见屏幕键盘时的分派；无系统键盘参与。
+bool fcitx::UserInterfaceManager::isVirtualKeyboardVisible() const { return true; }
+#endif
 using Json = nlohmann::json;
 
 class Context final : public fcitx::InputContext {
@@ -85,7 +90,11 @@ int main(int argc, char **arguments) {
         if (!identity.empty()) {
             auto ack = readMessage(connection).at("DisplayAcknowledged");
             assert(ack.at("identity") == identity);
+#if defined(QJ_TEST_VIRTUAL_KEYBOARD)
+            assert(ack.at("senses").empty());
+#else
             assert(ack.at("senses") == Json::parse("[[2,0]]"));
+#endif
         }
         if (idleDisconnect) { close(connection); return; }
         assert(readMessage(connection).at("Privacy").at("private") == false);

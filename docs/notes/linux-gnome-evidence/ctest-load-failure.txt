@@ -1,0 +1,9 @@
+2026-09-17 root candidate完整CTest: 38项，4项失败，56.99秒。
+本文件从本会话工具返回结果摘录，非CTest原始日志；LastTest.log随后被独立复测覆盖。
+Failed: 19 qingjian-gnome-probe, 20 qingjian-gnome-lost-painted, 22 qingjian-gnome-geometry, 24 qingjian-gnome-geometry-loop。
+13:52:43.372169 probe.cpp:233 paint_timeout；gnome_probe.cpp:116 painted && renews == (losePainted ? 0U : 1U) && fallback 未成立。
+13:52:50.442222 probe.cpp:233 paint_timeout；gnome_probe.cpp:116 同上。
+13:52:59.721001 probe.cpp:233 paint_timeout；gnome_probe.cpp:111 shows == (geometryBeforePaint ? 1U : 2U) && actions == 1 && acknowledgements == shows && !fallback 未成立。
+gnome_probe.cpp:106 prepares > 1 && shows == 0 && acknowledgements == 0 && fallback 未成立。
+对应用时3.19s、8.12s、7.60s、8.12s。其他34项通过。
+系统当时有资源抖动，独立只读命令也慢；不能以此静默忽略失败，后续定向/完整复测结果须单独记录。生产250ms期限未修改。

@@ -1,0 +1,7 @@
+{
+  "uuid": "qingjian-probe@qingjian.local",
+  "name": "青简位图通路探针",
+  "description": "仅用于隔离会话的阶段 0 位图与窗口身份候选实验，不是正式输入法扩展",
+  "shell-version": ["50"],
+  "version": 1
+}

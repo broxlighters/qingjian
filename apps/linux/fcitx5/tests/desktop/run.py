@@ -163,7 +163,7 @@ try:
     if args.case == "compositor-loss":
         compositor.terminate()
         compositor.wait(timeout=5)
-        until(lambda: "IsUnMapped" in run(["xwininfo", "-id", candidate]), "自绘窗未撤下", 3)
+        until(lambda: not visible(candidate), "自绘窗未撤下", 3)
     if args.case in ("compositor-loss", "no-compositor"):
         fallback = until(classic_window, "默认 Fcitx 候选 UI 未实际显示", 3)
         assert not custom_windows(), "回退时自绘仍然可见"

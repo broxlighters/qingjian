@@ -1,0 +1,592 @@
+{
+  "scope": "隔离 GNOME 50.1 / Mutter 50.1；不等同物理桌面、Snap沙箱或全应用验收",
+  "scenes": {
+    "qt_identity": {
+      "artifact": "target/gnome-identity/shell-zwwnpp0i",
+      "exit": 0,
+      "stdout": "before {'pointer': [401, 1, 0], 'actor': [362, 407, 221, 180], 'visible': True, 'mapped': True, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nmoved {'pointer': [432, 481, 0], 'actor': [362, 407, 221, 180], 'visible': True, 'mapped': True, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nclicked [432, 481] actor [362, 407, 221, 180] after {'pointer': [432, 481, 0], 'actor': [362, 407, 221, 180], 'visible': False, 'mapped': False, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\n{\"text\": \"你好\", \"scale\": 1.0}\n",
+      "stderr": ""
+    },
+    "gtk_identity": {
+      "artifact": "target/gnome-identity/shell-qzww5pti",
+      "exit": 0,
+      "stdout": "before {'pointer': [401, 1, 0], 'actor': [368, 465, 221, 180], 'visible': True, 'mapped': True, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nmoved {'pointer': [438, 539, 0], 'actor': [368, 465, 221, 180], 'visible': True, 'mapped': True, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nclicked [438, 539] actor [368, 465, 221, 180] after {'pointer': [438, 539, 0], 'actor': [368, 465, 221, 180], 'visible': False, 'mapped': False, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\n{\"text\": \"你好\", \"scale\": 1}\n",
+      "stderr": ""
+    },
+    "qt_two_fields": {
+      "artifact": "target/gnome-identity/shell-gv84kbrn",
+      "exit": 0,
+      "stdout": "before {'pointer': [1, 301, 0], 'actor': [373, 364, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nmoved {'pointer': [443, 438, 0], 'actor': [373, 364, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nclicked [443, 438] actor [373, 364, 221, 180] after {'pointer': [443, 438, 0], 'actor': [373, 364, 221, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nbefore {'pointer': [443, 438, 0], 'actor': [373, 450, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nmoved {'pointer': [443, 524, 0], 'actor': [373, 450, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nclicked [443, 524] actor [373, 450, 221, 180] after {'pointer': [443, 524, 0], 'actor': [373, 450, 221, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nbefore {'pointer': [443, 524, 0], 'actor': [403, 364, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nmoved {'pointer': [473, 438, 0], 'actor': [403, 364, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nclicked [473, 438] actor [403, 364, 221, 180] after {'pointer': [473, 438, 0], 'actor': [403, 364, 221, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 567979, 'focus': 'qingjian-qt-test', 'title': 'QJ two fields'}\nWINDOW_CYCLE [1, 1, 1]\n{\"text\": \"你好你好\", \"texts\": [\"你好你好\", \"你好\"]}\n",
+      "stderr": ""
+    },
+    "qt_output150": {
+      "artifact": "target/gnome-identity/shell-n_eba7sd",
+      "exit": 0,
+      "stdout": "SCALE [2, [[[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"], [[\"2880x1800@60.000\", 2880, 1800, 60.0, 1.5, [1.0, 1.25, 1.3333333730697632, 1.5, 1.6666666269302368, 2.0, 2.25, 2.5, 2.6666667461395264, 3.0, 3.3333332538604736], {\"is-current\": true, \"is-preferred\": true}]], {\"is-builtin\": false, \"display-name\": \"MetaVendor\", \"is-for-lease\": false, \"color-mode\": 0, \"supported-color-modes\": [0], \"rgb-range\": 1}]], [[0, 0, 1.5, 0, true, [[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"]], {}]], {\"layout-mode\": 1, \"supports-changing-layout-mode\": true}]\nbefore {'pointer': [1, 301, 0], 'actor': [682.3333129882812, 647.3333129882812, 220.66668701171875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 565520, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nmoved {'pointer': [752, 721, 0], 'actor': [682.3333129882812, 647.3333129882812, 220.66668701171875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 565520, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nclicked [752.3333129882812, 721.3333129882812] actor [682.3333129882812, 647.3333129882812, 220.6666717529297, 180] after {'pointer': [752, 721, 0], 'actor': [682.3333129882812, 647.3333129882812, 220.66668701171875, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 565520, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\n{\"text\": \"你好\", \"scale\": 1.5}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.5,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.5,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ]
+    },
+    "qt_output167": {
+      "artifact": "target/gnome-identity/shell-jk58e9it",
+      "exit": 0,
+      "stdout": "SCALE [2, [[[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"], [[\"2880x1800@60.000\", 2880, 1800, 60.0, 1.6666666269302368, [1.0, 1.25, 1.3333333730697632, 1.5, 1.6666666269302368, 2.0, 2.25, 2.5, 2.6666667461395264, 3.0, 3.3333332538604736], {\"is-current\": true, \"is-preferred\": true}]], {\"is-builtin\": false, \"display-name\": \"MetaVendor\", \"is-for-lease\": false, \"color-mode\": 0, \"supported-color-modes\": [0], \"rgb-range\": 1}]], [[0, 0, 1.6666666269302368, 0, true, [[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"]], {}]], {\"layout-mode\": 1, \"supports-changing-layout-mode\": true}]\nbefore {'pointer': [1, 301, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 571464, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nmoved {'pointer': [655, 660, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 571464, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nclicked [655.7999877929688, 660.5999755859375] actor [585.7999877929688, 586.5999755859375, 220.8000030517578, 180] after {'pointer': [655, 660, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 571464, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\n{\"text\": \"你好\", \"scale\": 1.6666666666666667}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.6666666269302368,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.6666666269302368,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ]
+    },
+    "gtk_output150": {
+      "artifact": "target/gnome-identity/shell-h8tc_x0r",
+      "exit": 0,
+      "stdout": "SCALE [2, [[[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"], [[\"2880x1800@60.000\", 2880, 1800, 60.0, 1.5, [1.0, 1.25, 1.3333333730697632, 1.5, 1.6666666269302368, 2.0, 2.25, 2.5, 2.6666667461395264, 3.0, 3.3333332538604736], {\"is-current\": true, \"is-preferred\": true}]], {\"is-builtin\": false, \"display-name\": \"MetaVendor\", \"is-for-lease\": false, \"color-mode\": 0, \"supported-color-modes\": [0], \"rgb-range\": 1}]], [[0, 0, 1.5, 0, true, [[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"]], {}]], {\"layout-mode\": 1, \"supports-changing-layout-mode\": true}]\nbefore {'pointer': [1, 301, 0], 'actor': [688, 705, 220.66668701171875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 571474, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nmoved {'pointer': [758, 779, 0], 'actor': [688, 705, 220.66668701171875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 571474, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nclicked [758, 779] actor [688, 705, 220.6666717529297, 180] after {'pointer': [758, 779, 0], 'actor': [688, 705, 220.66668701171875, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 571474, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\n{\"text\": \"你好\", \"scale\": 2}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.5,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.5,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ]
+    },
+    "gtk_output167": {
+      "artifact": "target/gnome-identity/shell-1zn0gdvb",
+      "exit": 0,
+      "stdout": "SCALE [2, [[[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"], [[\"2880x1800@60.000\", 2880, 1800, 60.0, 1.6666666269302368, [1.0, 1.25, 1.3333333730697632, 1.5, 1.6666666269302368, 2.0, 2.25, 2.5, 2.6666667461395264, 3.0, 3.3333332538604736], {\"is-current\": true, \"is-preferred\": true}]], {\"is-builtin\": false, \"display-name\": \"MetaVendor\", \"is-for-lease\": false, \"color-mode\": 0, \"supported-color-modes\": [0], \"rgb-range\": 1}]], [[0, 0, 1.6666666269302368, 0, true, [[\"Meta-0\", \"MetaVendor\", \"MetaVirtualMonitor\", \"0x00\"]], {}]], {\"layout-mode\": 1, \"supports-changing-layout-mode\": true}]\nbefore {'pointer': [401, 1, 0], 'actor': [592, 645, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 586468, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nmoved {'pointer': [662, 719, 0], 'actor': [592, 645, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 586468, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\nclicked [662, 719] actor [592, 645, 220.8000030517578, 180] after {'pointer': [662, 719, 0], 'actor': [592, 645, 220.79998779296875, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 586468, 'focus': 'qingjian-gtk-test', 'title': 'Qingjian isolated GTK test'}\n{\"text\": \"你好\", \"scale\": 2}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.6666666269302368,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.6666666269302368,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ]
+    },
+    "firefox_bare_native": {
+      "artifact": "target/gnome-identity/shell-i89q80ey",
+      "exit": 0,
+      "stdout": "before {'pointer': [401, 1, 0], 'actor': [112, 146, 221, 180], 'visible': True, 'mapped': True, 'focus': 'firefox', 'title': \"QJ:ni'hao:QJ-END — Mozilla Firefox\"}\nmoved {'pointer': [182, 220, 0], 'actor': [112, 146, 221, 180], 'visible': True, 'mapped': True, 'focus': 'firefox', 'title': \"QJ:ni'hao:QJ-END — Mozilla Firefox\"}\nclicked [182, 220] actor [112, 146, 221, 180] after {'pointer': [182, 220, 0], 'actor': [112, 146, 221, 180], 'visible': False, 'mapped': False, 'focus': 'firefox', 'title': 'QJ:你好:QJ-END — Mozilla Firefox'}\n{\"pointer\": [182, 220, 0], \"actor\": [112, 146, 221, 180], \"visible\": false, \"mapped\": false, \"focus\": \"firefox\", \"title\": \"QJ:你好:QJ-END — Mozilla Firefox\"}\n",
+      "stderr": ""
+    },
+    "text125_follow": {
+      "artifact": "target/gnome-identity/shell-y1q0cd05",
+      "exit": 0,
+      "stdout": "(1.25,)\nbefore {'pointer': [401, 1, 0], 'actor': [362, 411, 253, 198], 'visible': True, 'mapped': True, 'window': 1, 'pid': 611676, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nmoved {'pointer': [432, 485, 0], 'actor': [362, 411, 253, 198], 'visible': True, 'mapped': True, 'window': 1, 'pid': 611676, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nclicked [432, 485] actor [362, 411, 253, 198] after {'pointer': [432, 485, 0], 'actor': [362, 411, 253, 198], 'visible': False, 'mapped': False, 'window': 1, 'pid': 611676, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\n{\"text\": \"你好\", \"scale\": 1.0}\n",
+      "stderr": ""
+    },
+    "text125_unfollow": {
+      "artifact": "target/gnome-identity/shell-71ja0unw",
+      "exit": 0,
+      "stdout": "(1.25,)\nbefore {'pointer': [401, 1, 0], 'actor': [362, 411, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 611677, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nmoved {'pointer': [432, 485, 0], 'actor': [362, 411, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 611677, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\nclicked [432, 485] actor [362, 411, 221, 180] after {'pointer': [432, 485, 0], 'actor': [362, 411, 221, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 611677, 'focus': 'qingjian-qt-test', 'title': 'Qingjian isolated Qt6 test'}\n{\"text\": \"你好\", \"scale\": 1.0}\n",
+      "stderr": ""
+    },
+    "ui125": {
+      "artifact": "target/gnome-identity/shell-o9lr10gb",
+      "exit": 0,
+      "stdout": "before {'pointer': [401, 1, 0], 'actor': [362, 407, 276, 225], 'visible': True, 'mapped': True, 'window': 1, 'pid': 621771, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nmoved {'pointer': [449, 499, 0], 'actor': [362, 407, 276, 225], 'visible': True, 'mapped': True, 'window': 1, 'pid': 621771, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nclicked [449.5, 499.5] after {'pointer': [449, 499, 0], 'actor': [362, 407, 276, 225], 'visible': False, 'mapped': False, 'window': 1, 'pid': 621771, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1.0}\n",
+      "stderr": ""
+    },
+    "ui150": {
+      "artifact": "target/gnome-identity/shell-e7t_hwj_",
+      "exit": 0,
+      "stdout": "before {'pointer': [401, 1, 0], 'actor': [362, 407, 331, 270], 'visible': True, 'mapped': True, 'window': 1, 'pid': 621773, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nmoved {'pointer': [467, 518, 0], 'actor': [362, 407, 331, 270], 'visible': True, 'mapped': True, 'window': 1, 'pid': 621773, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nclicked [467.0, 518.0] after {'pointer': [467, 518, 0], 'actor': [362, 407, 331, 270], 'visible': False, 'mapped': False, 'window': 1, 'pid': 621773, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1.0}\n",
+      "stderr": ""
+    },
+    "real_default_fallback": {
+      "artifact": "target/gnome-identity/shell-p42_d9hx",
+      "exit": 0,
+      "stdout": "before {'pointer': [1, 301, 0], 'actor': [368, 465, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 631615, 'focus': 'qingjian-gtk-test', 'title': 'QJ isolated GTK window 0'}\nDEFAULT_RECOVERED {\"elapsed_ms\": 103.59159699873999, \"state\": {\"visible\": true, \"mapped\": true, \"items\": [{\"rect\": [13, 71, 123, 35], \"visible\": true, \"mapped\": true}, {\"rect\": [13, 106, 123, 35], \"visible\": true, \"mapped\": true}, {\"rect\": [13, 141, 123, 35], \"visible\": true, \"mapped\": true}], \"pointer\": [1, 301, 0], \"window\": 1}}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1}\n",
+      "stderr": ""
+    },
+    "screenshot100": {
+      "artifact": "target/gnome-identity/shell-21kzaf_i",
+      "exit": 0,
+      "stdout": "before {'pointer': [1, 301, 0], 'actor': [362, 407, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 640983, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nSCREENSHOT ('/home/szkj/project/qingjian/target/gnome-identity/shell-21kzaf_i/runtime/../candidate.png',)\nmoved {'pointer': [432, 481, 0], 'actor': [362, 407, 221, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 640983, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nclicked [432.0, 481.0] after {'pointer': [432, 481, 0], 'actor': [362, 407, 221, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 640983, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1.0}\n",
+      "stderr": "",
+      "screenshot_sha256": "59878d7d9731c5f6f357f19c55459dacd830af6c1f8124ac9651a4868e65451a"
+    },
+    "screenshot167": {
+      "artifact": "target/gnome-identity/shell-8wp_ow7b",
+      "exit": 0,
+      "stdout": "SCALE 1.6666666269302368\nbefore {'pointer': [1, 301, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 627954, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nSCREENSHOT ('/home/szkj/project/qingjian/target/gnome-identity/shell-8wp_ow7b/runtime/../candidate.png',)\nmoved {'pointer': [655, 660, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 627954, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nclicked [655.7999877929688, 660.5999755859375] after {'pointer': [655, 660, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 627954, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1.6666666666666667}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.6666666269302368,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.6666666269302368,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ],
+      "screenshot_sha256": "40d912ef8651fb27cb9e6b7fb42e7dc5ff7a8658e83e47b799e32ee260e6a30d"
+    },
+    "cross_output_before_fix": {
+      "artifact": "target/gnome-identity/shell-z6n9n1gq",
+      "exit": 1,
+      "stdout": "before {'pointer': [1, 301, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 629840, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nMOVED_OUTPUT {'pointer': [1, 301, 0], 'actor': [1507.199951171875, 570.5999755859375, 220.8000030517578, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 629840, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nSCREENSHOT ('/home/szkj/project/qingjian/target/gnome-identity/shell-z6n9n1gq/runtime/../candidate.png',)\n",
+      "stderr": "Traceback (most recent call last):\n  File \"/home/szkj/project/qingjian/target/gnome-identity/move-native.py\", line 22, in <module>\n    exec(compile(s,str(native),'exec'),{'__file__':str(native),'__name__':'__main__'})\n    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/szkj/project/qingjian/apps/linux/probes/gnome/native-input.py\", line 139, in <module>\n    input_cycle()\n         ~~~~~~^^\n  File \"/home/szkj/project/qingjian/apps/linux/probes/gnome/native-input.py\", line 107, in input_cycle\n    current=default_state();elapsed=(time.monotonic()-began)*1000\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'pointer': [1, 301, 0], 'actor': [1507.199951171875, 570.5999755859375, 220.8000030517578, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 629840, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n",
+      "screenshot_sha256": "1fb3aa17c3ce6bdb89a5858bcaed322f20f42fc37b9e72ae3fe72f0e0aeb235d"
+    },
+    "cross_output_after_fix": {
+      "artifact": "target/gnome-identity/shell-gao_vxd3",
+      "exit": 0,
+      "stdout": "SCALE 1.0\nbefore {'pointer': [1, 301, 0], 'actor': [585.7999877929688, 586.5999755859375, 220.79998779296875, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 681852, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nOUTPUT_MOVED {\"monitor\": 1, \"elapsed_ms\": 423.68532300315564, \"state\": {\"pointer\": [1, 301, 0], \"actor\": [1870.800048828125, 240.60000610351562, 221, 180], \"visible\": true, \"mapped\": true, \"window\": 1, \"pid\": 681852, \"focus\": \"qingjian-qt-test\", \"title\": \"QJ isolated Qt single 0\"}}\nOUTPUT_MOVED {\"monitor\": 0, \"elapsed_ms\": 409.171145001892, \"state\": {\"pointer\": [1, 301, 0], \"actor\": [142.8000030517578, 272.6000061035156, 220.8000030517578, 180], \"visible\": true, \"mapped\": true, \"window\": 1, \"pid\": 681852, \"focus\": \"qingjian-qt-test\", \"title\": \"QJ isolated Qt single 0\"}}\nSCREENSHOT /home/szkj/project/qingjian/target/gnome-identity/shell-gao_vxd3/runtime/../candidate.png\nmoved {'pointer': [212, 346, 0], 'actor': [142.8000030517578, 272.6000061035156, 220.8000030517578, 180], 'visible': True, 'mapped': True, 'window': 1, 'pid': 681852, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\nclicked [212.8000030517578, 346.6000061035156] after {'pointer': [212, 346, 0], 'actor': [142.8000030517578, 272.6000061035156, 220.8000030517578, 180], 'visible': False, 'mapped': False, 'window': 1, 'pid': 681852, 'focus': 'qingjian-qt-test', 'title': 'QJ isolated Qt single 0'}\n{\"text\": \"你好\", \"texts\": [\"你好\"], \"scale\": 1.6666666666666667}\n",
+      "stderr": "",
+      "monitor_state": [
+        2,
+        [
+          [
+            [
+              "Meta-0",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x00"
+            ],
+            [
+              [
+                "2880x1800@60.000",
+                2880,
+                1800,
+                60.0,
+                1.6666666269302368,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0,
+                  2.25,
+                  2.5,
+                  2.6666667461395264,
+                  3.0,
+                  3.3333332538604736
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ],
+          [
+            [
+              "Meta-1",
+              "MetaVendor",
+              "MetaVirtualMonitor",
+              "0x01"
+            ],
+            [
+              [
+                "1920x1080@60.000",
+                1920,
+                1080,
+                60.0,
+                1.0,
+                [
+                  1.0,
+                  1.25,
+                  1.3333333730697632,
+                  1.5,
+                  1.6666666269302368,
+                  2.0
+                ],
+                {
+                  "is-current": true,
+                  "is-preferred": true
+                }
+              ]
+            ],
+            {
+              "is-builtin": false,
+              "display-name": "MetaVendor",
+              "is-for-lease": false,
+              "color-mode": 0,
+              "supported-color-modes": [
+                0
+              ],
+              "rgb-range": 1
+            }
+          ]
+        ],
+        [
+          [
+            0,
+            0,
+            1.6666666269302368,
+            0,
+            true,
+            [
+              [
+                "Meta-0",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x00"
+              ]
+            ],
+            {}
+          ],
+          [
+            1728,
+            0,
+            1.0,
+            0,
+            false,
+            [
+              [
+                "Meta-1",
+                "MetaVendor",
+                "MetaVirtualMonitor",
+                "0x01"
+              ]
+            ],
+            {}
+          ]
+        ],
+        {
+          "layout-mode": 1,
+          "supports-changing-layout-mode": true
+        }
+      ]
+    }
+  },
+  "version_notes": "GNOME 50.1/Fcitx5 5.1.19/GTK4 4.22.4/Qt6 6.10.2。部分早期默认100%身份场景使用旧Server二进制（不含尺寸字段）；默认配置行为不受影响。文字/UI倍率场景使用重建后的release Server。当前code-snapshot是交付工作树，不倒推为每个历史样本执行时完全相同代码。"
+}

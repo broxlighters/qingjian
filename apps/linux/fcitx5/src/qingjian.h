@@ -6,6 +6,7 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/instance.h>
+#include <vector>
 namespace fcitx {
 class QingjianEngine final : public InputMethodEngineV2 {
 public:
@@ -32,5 +33,8 @@ private:
     std::unique_ptr<HandlerTableEntry<EventHandler>> cursorWatcher_;
     /// 虚拟键盘优先接管时同步撤下自绘窗口。
     std::unique_ptr<HandlerTableEntry<EventHandler>> virtualKeyboardWatcher_;
+
+    /// 阶段 0 焦点/坐标证据；只有明确启用诊断时才写日志。
+    std::vector<std::unique_ptr<HandlerTableEntry<EventHandler>>> diagnosticWatchers_;
 };
 }

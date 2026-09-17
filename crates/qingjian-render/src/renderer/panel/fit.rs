@@ -18,7 +18,7 @@ impl Renderer {
             available
         };
         if let Some(preedit) = &mut frame.preedit {
-            let mut remaining = top_budget - m.px(CARET_WIDTH);
+            let mut remaining = top_budget - m.decoration_px(CARET_WIDTH);
             for segment in &mut preedit.segments {
                 segment.text = self.fit_text(&segment.text, &annotation_style, remaining);
                 remaining -= self.measure(&segment.text, &annotation_style).width;
@@ -26,7 +26,7 @@ impl Renderer {
             preedit.cursor = preedit.cursor.min(preedit.text().chars().count());
         }
         let trailing_budget = if frame.preedit.is_some() {
-            available - top_budget - m.px(SENTENCE_GAP)
+            available - top_budget - m.decoration_px(SENTENCE_GAP)
         } else {
             available
         };
@@ -48,7 +48,7 @@ impl Renderer {
         match config.layout {
             Layout::Vertical => {
                 for row in &mut frame.rows {
-                    row.index = self.fit_text(&row.index, &m.index_style(), m.px(24.0));
+                    row.index = self.fit_text(&row.index, &m.index_style(), m.index_budget());
                 }
                 let index = self.columns(&frame.rows, &m).index_width;
                 let word_budget = (available - index - m.column_gap())
@@ -78,20 +78,20 @@ impl Renderer {
                 let count = frame.rows.len().max(1) as f32;
                 let budget = (available
                     - footer_width
-                    - m.px(HIGHLIGHT_INSET) * 2.0
+                    - m.decoration_px(HIGHLIGHT_INSET) * 2.0
                     - m.column_gap() * (count - 1.0))
                     / count;
                 for row in &mut frame.rows {
-                    row.index = self.fit_text(&row.index, &m.index_style(), m.px(24.0));
+                    row.index = self.fit_text(&row.index, &m.index_style(), m.index_budget());
                     let word_budget = budget
                         - self.measure(&row.index, &m.index_style()).width
-                        - m.px(INDEX_GAP)
+                        - m.decoration_px(INDEX_GAP)
                         - if row.cloud { m.cloud_width() } else { 0.0 };
                     row.text = self.fit_text(&row.text, &m.text_style(), word_budget);
                     self.fit_annotation(
                         &mut row.annotation,
                         &annotation_style,
-                        available - m.px(HIGHLIGHT_INSET),
+                        available - m.decoration_px(HIGHLIGHT_INSET),
                     );
                 }
             }

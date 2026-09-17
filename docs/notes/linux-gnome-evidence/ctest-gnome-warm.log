@@ -1,0 +1,19 @@
+Test project /home/szkj/project/qingjian/target/gnome-candidate-probe
+    Start 18: qingjian-gnome-origin
+1/7 Test #18: qingjian-gnome-origin .............   Passed    0.06 sec
+    Start 19: qingjian-gnome-probe
+2/7 Test #19: qingjian-gnome-probe ..............   Passed    0.95 sec
+    Start 20: qingjian-gnome-lost-painted
+3/7 Test #20: qingjian-gnome-lost-painted .......   Passed    0.84 sec
+    Start 21: qingjian-gnome-invalid-prepare
+4/7 Test #21: qingjian-gnome-invalid-prepare ....   Passed    0.58 sec
+    Start 22: qingjian-gnome-geometry
+5/7 Test #22: qingjian-gnome-geometry ...........   Passed    0.09 sec
+    Start 23: qingjian-gnome-geometry-prepare
+6/7 Test #23: qingjian-gnome-geometry-prepare ...   Passed    0.09 sec
+    Start 24: qingjian-gnome-geometry-loop
+7/7 Test #24: qingjian-gnome-geometry-loop ......   Passed    0.33 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   2.95 sec

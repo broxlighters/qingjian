@@ -2,6 +2,7 @@
 #pragma once
 #include "ipc/connection.h"
 #include "panel/controller.h"
+#include "panel/gnome/identity/focus.h"
 #include <fcitx/inputcontextproperty.h>
 namespace qingjian {
 class Session final : public fcitx::InputContextProperty {
@@ -27,6 +28,8 @@ public:
     uint64_t revision = 0;
     /// 同一 InputContext 的连接代次，断线重连后旧帧全部失效。
     uint64_t generation = 0;
+    /// 只用于实验 Shell 身份绑定；焦点/Reset/能力改变均撤销。
+    panel::FocusIdentity focusIdentity;
     /// 新 Server 已协商 Linux UI 扩展，旧 Server 继续默认面板。
     bool displayReporting = false;
     /// 服务端给出的完整帧身份。

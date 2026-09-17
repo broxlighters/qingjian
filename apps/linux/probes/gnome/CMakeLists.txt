@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(qingjian-gnome-probe LANGUAGES CXX)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FCITX5 REQUIRED IMPORTED_TARGET Fcitx5Utils>=5.1.9)
+add_executable(qingjian-gnome-probe sender.cpp)
+target_compile_features(qingjian-gnome-probe PRIVATE cxx_std_20)
+target_compile_options(qingjian-gnome-probe PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(qingjian-gnome-probe PRIVATE PkgConfig::FCITX5)

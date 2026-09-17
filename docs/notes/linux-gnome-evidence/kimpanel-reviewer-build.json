@@ -1,0 +1,30 @@
+{
+  "archive_sha256": "a6e4d99a82298845df9f8dc5036c1aaed258c2d3f5bd215b8f91c75410167ff0",
+  "patch_sha256": "e4e29152b5b29528c5702f3dfcd2e014b634ee68cb8e70fe38c179a165356e9e",
+  "config_sha256": "fac63b3a08f3beaa08de7bcaf0f503f791c43619d6c8885eacbf3a23af7b81d0",
+  "command": [
+    "c++",
+    "-std=c++20",
+    "-shared",
+    "-fPIC",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-I/usr/include/Fcitx5/Core",
+    "-I/usr/include/Fcitx5/Config",
+    "-I/usr/include/Fcitx5/Utils",
+    "-I/home/szkj/project/qingjian/target/dual-ui/upstream/build",
+    "-I/home/szkj/project/qingjian/target/reviewer-identity/kimpanel-clean/fcitx5-5.1.19/src/lib",
+    "-I/home/szkj/project/qingjian/target/reviewer-identity/kimpanel-clean/fcitx5-5.1.19/src/modules/dbus",
+    "-I/home/szkj/project/qingjian/target/reviewer-identity/kimpanel-clean/fcitx5-5.1.19/src/modules/xcb",
+    "/home/szkj/project/qingjian/target/reviewer-identity/kimpanel-clean/fcitx5-5.1.19/src/ui/kimpanel/kimpanel.cpp",
+    "-lFcitx5Core",
+    "-lFcitx5Config",
+    "-lFcitx5Utils",
+    "-o",
+    "/home/szkj/project/qingjian/target/reviewer-identity/kimpanel-clean/libkimpanel.so"
+  ],
+  "binary_sha256": "5718fa2804e2f7cfe1176ce5c9d7fccd83420f52a29bc0d4533b8835ac0899a6",
+  "note": "只供 --fcitx-kimpanel 隔离夹具显式加载；没有安装到系统或青简发行包。"
+}

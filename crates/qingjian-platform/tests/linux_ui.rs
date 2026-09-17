@@ -13,3 +13,27 @@ fn linux_ui_defaults_to_fcitx_and_rejects_typos() {
     }
     assert!(toml::from_str::<Config>("[linux_ui]\nrenderer = 'typo'\n").is_err());
 }
+
+#[test]
+fn linux_ui_size_defaults_boundaries_and_invalid_values() {
+    let defaults: Config = toml::from_str("[linux_ui]\nrenderer='qingjian'").unwrap();
+    assert_eq!(defaults.linux_ui.effective_ui_scale_percent(), 100);
+    assert!(defaults.linux_ui.follow_system_text_scale);
+    for (requested, effective) in [
+        (i64::MIN, 100),
+        (i64::MAX, 100),
+        (-1, 100),
+        (74, 100),
+        (75, 75),
+        (125, 125),
+        (200, 200),
+        (201, 100),
+    ] {
+        let config: Config = toml::from_str(&format!(
+            "[linux_ui]\nui_scale_percent={requested}\nfollow_system_text_scale=false"
+        ))
+        .unwrap();
+        assert_eq!(config.linux_ui.effective_ui_scale_percent(), effective);
+        assert!(!config.linux_ui.follow_system_text_scale);
+    }
+}

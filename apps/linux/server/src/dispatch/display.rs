@@ -7,7 +7,11 @@ use serde_json::{Value, json};
 
 impl Router {
     pub fn display_settings(&self) -> Value {
-        json!({"version": LINUX_UI_PROTOCOL, "renderer": self.config.renderer, "preedit": self.config.preedit})
+        // 独立可选能力：旧插件忽略，新插件与旧 Server 握手时使用 100%/跟随系统。
+        json!({"version": LINUX_UI_PROTOCOL, "renderer": self.config.renderer,
+            "preedit": self.config.preedit, "size_version": 1,
+            "ui_scale_percent": self.config.ui_scale_percent,
+            "follow_system_text_scale": self.config.follow_system_text_scale})
     }
 
     pub fn handle_linux(&mut self, value: Value) -> Option<Value> {

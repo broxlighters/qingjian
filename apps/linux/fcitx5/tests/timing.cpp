@@ -8,6 +8,7 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <string>
 namespace {
 using Clock = std::chrono::steady_clock;
 uint64_t elapsed(Clock::time_point start) {
@@ -32,10 +33,18 @@ nlohmann::json frame(bool longText, const char *layout) {
 }
 }
 int main(int argc, char **argv) try {
-    if (argc != 2 || !*argv[1]) {
-        fprintf(stderr, "用法：qingjian-xcb-timing X-display；仅测试自己创建的窗口\n");
+    if ((argc != 2 && argc != 5) || !*argv[1]) {
+        fprintf(stderr, "用法：qingjian-xcb-timing X-display [--compare hide|update raw.csv]；仅测试自己创建的窗口\n");
         return 2;
     }
+    const bool compare = argc == 5;
+    if (compare && (std::string(argv[2]) != "--compare" ||
+        (std::string(argv[3]) != "hide" && std::string(argv[3]) != "update"))) return 2;
+    const bool hideEachFrame = !compare || std::string(argv[3]) == "hide";
+    auto closeFile = [](FILE *file) { fclose(file); };
+    std::unique_ptr<FILE, decltype(closeFile)> raw(compare ? fopen(argv[4], "w") : nullptr, closeFile);
+    if (compare && !raw) throw std::runtime_error("raw csv");
+    if (raw) fprintf(raw.get(), "iteration,total_ns,layout_ns,raster_ns,backend_ns,probe_ns,convert_ns,upload_ns,commit_ns,upload_bytes\n");
     auto backend = qingjian::panel::openXcb(argv[1]);
     if (!backend) { fprintf(stderr, "X11 合成器、ARGB 或 RandR 条件不满足\n"); return 77; }
     const auto init = Clock::now();
@@ -47,14 +56,17 @@ int main(int argc, char **argv) try {
     puts("sample,layout,scale,change,width,height,first_ms,total_p50_ms,total_p95_ms,total_p99_ms,layout_p95_ms,raster_p95_ms,backend_p95_ms,probe_p95_ms,convert_p95_ms,upload_p95_ms,commit_p95_ms,mean_upload_bytes");
     for (bool longText : {false, true}) for (const auto *layout : {"vertical", "horizontal"}) {
         for (float scale : {1.0F, 1.25F, 1.5F, 2.0F}) for (const auto *change : {"same", "highlight", "page"}) {
+            if (compare && (longText || std::string(layout) != "vertical" || scale != 1 || std::string(change) != "highlight")) continue;
             auto source = frame(longText, layout);
             std::vector<uint64_t> total, layouts, rasters, backends, probes, conversions, uploads, commits;
             uint64_t bytes = 0, first = 0;
             QjImageInfo image{};
-            for (unsigned iteration = 0; iteration <= 100; ++iteration) {
+            const unsigned warmup = compare ? 100 : 0;
+            const unsigned samples = compare ? 1000 : 100;
+            for (unsigned iteration = 0; iteration <= warmup + samples; ++iteration) {
                 if (change == std::string("highlight")) source["highlight"] = iteration % 2;
                 if (change == std::string("page")) source["page"] = iteration % 2;
-                backend->hide(); // 与 Controller 同样先隐藏、后交付新帧。
+                if (hideEachFrame) backend->hide();
                 const auto started = Clock::now();
                 const auto body = source.dump();
                 const std::unique_ptr<QjResult, decltype(&qj_result_destroy)> result(qj_renderer_render(renderer.get(), QJ_RENDER_ABI_VERSION,
@@ -65,7 +77,14 @@ int main(int argc, char **argv) try {
                 if (!backend->present(image.pixels, image.width, image.height, image.stride, cursor)) throw std::runtime_error("present");
                 const auto backendNs = elapsed(startBackend), totalNs = elapsed(started);
                 if (!iteration) { first = totalNs; continue; }
+                if (iteration <= warmup) continue;
                 const auto timing = backend->timing();
+                if (raw) fprintf(raw.get(), "%u,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu,%llu\n", iteration - warmup,
+                    static_cast<unsigned long long>(totalNs), static_cast<unsigned long long>(image.layout_ns),
+                    static_cast<unsigned long long>(image.raster_ns), static_cast<unsigned long long>(backendNs),
+                    static_cast<unsigned long long>(timing.probeNs), static_cast<unsigned long long>(timing.convertNs),
+                    static_cast<unsigned long long>(timing.uploadNs), static_cast<unsigned long long>(timing.commitNs),
+                    static_cast<unsigned long long>(timing.uploadBytes));
                 total.push_back(totalNs); layouts.push_back(image.layout_ns); rasters.push_back(image.raster_ns);
                 backends.push_back(backendNs); probes.push_back(timing.probeNs); conversions.push_back(timing.convertNs);
                 uploads.push_back(timing.uploadNs); commits.push_back(timing.commitNs); bytes += timing.uploadBytes;

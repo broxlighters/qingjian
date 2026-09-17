@@ -13,10 +13,10 @@ impl Renderer {
         let (items, row_height) = self.items(&frame.rows, m);
         let mut width: f32 = items
             .iter()
-            .map(|item| item.index_width + m.px(INDEX_GAP) + item.text_width)
+            .map(|item| item.index_width + m.decoration_px(INDEX_GAP) + item.text_width)
             .sum::<f32>()
             + m.column_gap() * items.len().saturating_sub(1) as f32
-            + m.px(HIGHLIGHT_INSET) * 2.0;
+            + m.decoration_px(HIGHLIGHT_INSET) * 2.0;
         if let Some(footer) = frame.footer.as_deref() {
             width += m.column_gap() + self.measure(footer, &m.index_style()).width;
         }
@@ -84,10 +84,10 @@ impl Renderer {
         let (items, row_height) = self.items(&frame.rows, m);
         let top = y + m.row_padding();
         let text_height = m.px(m.theme.text_font.line_height);
-        let inset = m.px(HIGHLIGHT_INSET);
+        let inset = m.decoration_px(HIGHLIGHT_INSET);
         let mut x = left + m.padding() + inset;
         for (i, (row, item)) in frame.rows.iter().zip(&items).enumerate() {
-            let item_width = item.index_width + m.px(INDEX_GAP) + item.text_width;
+            let item_width = item.index_width + m.decoration_px(INDEX_GAP) + item.text_width;
             if !row.text.is_empty() {
                 self.geometry.candidates.push(crate::HitRegion {
                     row: i,
@@ -120,7 +120,7 @@ impl Renderer {
                 canvas,
                 m,
                 row,
-                x + item.index_width + m.px(INDEX_GAP),
+                x + item.index_width + m.decoration_px(INDEX_GAP),
                 top,
                 text_height,
             );

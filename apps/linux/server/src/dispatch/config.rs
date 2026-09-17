@@ -11,6 +11,12 @@ pub struct RouterConfig {
     /// Linux 独立显示初始化信息。
     pub renderer: LinuxRenderer,
 
+    /// Linux 独立尺寸配置；不处理桌面 DPI。
+    pub ui_scale_percent: u32,
+
+    /// 是否跟随系统文字大小。
+    pub follow_system_text_scale: bool,
+
     /// 应用与窗口拼音显示位置。
     pub preedit: PreeditMode,
 
@@ -57,6 +63,8 @@ impl From<&Config> for RouterConfig {
         Self {
             page_size: config.general.page_size(),
             renderer: config.linux_ui.renderer,
+            ui_scale_percent: config.linux_ui.effective_ui_scale_percent(),
+            follow_system_text_scale: config.linux_ui.follow_system_text_scale,
             preedit: config.general.preedit,
             cloud_slots: 0,
             layout: config.general.layout,

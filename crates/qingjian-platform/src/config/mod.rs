@@ -223,6 +223,10 @@ question_mark = false
 [linux_ui]
 # Linux 候选窗口：fcitx 默认面板 / auto 仅已验收场景 / qingjian 优先请求自绘，不可用时回退
 renderer = "fcitx"
+# 青简自绘大小（75–200），不改变 Fcitx 默认面板；修改后重启青简服务和 Fcitx5
+ui_scale_percent = 100
+# 跟随系统文字大小；显示器缩放始终单独处理
+follow_system_text_scale = true
 
 [fuzzy]
 # 模糊音：开了之后敲 zi 也出 zhi 的字、敲 lan 也出 nan 的字。默认全关，按需打开。

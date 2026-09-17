@@ -1,0 +1,2 @@
+sample,layout,scale,change,width,height,first_ms,total_p50_ms,total_p95_ms,total_p99_ms,layout_p95_ms,raster_p95_ms,backend_p95_ms,probe_p95_ms,convert_p95_ms,upload_p95_ms,commit_p95_ms,mean_upload_bytes
+short,vertical,1.00,highlight,179,198,8.366,1.051,1.522,2.038,0.020,0.297,1.187,0.001,0.338,0.417,0.556,38664

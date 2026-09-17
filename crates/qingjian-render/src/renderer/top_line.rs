@@ -14,11 +14,11 @@ impl Renderer {
         let line_height = style.line_height;
         let mut width = 0.0;
         if let Some(preedit) = &frame.preedit {
-            width += self.measure(&preedit.text(), &style).width + m.px(CARET_WIDTH);
+            width += self.measure(&preedit.text(), &style).width + m.decoration_px(CARET_WIDTH);
         }
         if let Some((text, cloud)) = frame.trailing() {
             if frame.preedit.is_some() {
-                width += m.px(SENTENCE_GAP);
+                width += m.decoration_px(SENTENCE_GAP);
             }
             if cloud {
                 width += m.cloud_width();
@@ -46,7 +46,7 @@ impl Renderer {
         if let Some(preedit) = &frame.preedit {
             x += self.draw_preedit(canvas, m, preedit, x, top, line_height);
             if frame.trailing().is_some() {
-                x += m.px(SENTENCE_GAP);
+                x += m.decoration_px(SENTENCE_GAP);
             }
         }
         // 整句补全：云朵 + 句子，颜色与本地候选区分；临时状态灰字、不带云朵
@@ -87,10 +87,10 @@ impl Renderer {
         canvas.fill_rect(
             caret_x,
             top,
-            m.px(CARET_WIDTH),
+            m.decoration_px(CARET_WIDTH),
             line_height,
             m.theme.colors.text,
         );
-        cursor_x - x + m.px(CARET_WIDTH)
+        cursor_x - x + m.decoration_px(CARET_WIDTH)
     }
 }

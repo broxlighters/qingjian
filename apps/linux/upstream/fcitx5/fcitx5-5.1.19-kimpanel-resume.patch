@@ -1,0 +1,86 @@
+--- a/src/ui/kimpanel/kimpanel.h
++++ b/src/ui/kimpanel/kimpanel.h
+@@ -57,6 +57,7 @@
+ 
+ private:
+     void setAvailable(bool available);
++    void updateCursor(InputContext *inputContext);
+ 
+     FCITX_ADDON_DEPENDENCY_LOADER(dbus, instance_->addonManager());
+     FCITX_ADDON_DEPENDENCY_LOADER(classicui, instance_->addonManager());
+--- a/src/ui/kimpanel/kimpanel.cpp
++++ b/src/ui/kimpanel/kimpanel.cpp
+@@ -123,6 +123,7 @@
+ void Kimpanel::reloadConfig() { readAsIni(config_, "conf/kimpanel.conf"); }
+ 
+ void Kimpanel::suspend() {
++    relativeQuery_.reset();
+     eventHandlers_.clear();
+     proxy_.reset();
+     bus_->releaseName("org.kde.kimpanel.inputmethod");
+@@ -173,6 +174,25 @@
+                                action->shortText(ic), ":",
+                                IconTheme::iconName(action->icon(ic)), ":",
+                                action->longText(ic), ":", type);
++}
++
++void Kimpanel::updateCursor(InputContext *inputContext) {
++    if (!proxy_ || !inputContext || !inputContext->hasFocus()) {
++        return;
++    }
++    CursorRectMethod method = CursorRectMethod::SetSpotRect;
++    if (inputContext->capabilityFlags().test(CapabilityFlag::RelativeRect)) {
++        // 不能在异步协商尚未结束时将相对坐标作为屏幕绝对坐标发送。
++        if (relativeQuery_) {
++            return;
++        }
++        if (hasRelativeV2_) {
++            method = CursorRectMethod::SetRelativeSpotRectV2;
++        } else if (hasRelative_) {
++            method = CursorRectMethod::SetRelativeSpotRect;
++        }
++    }
++    proxy_->updateCursor(inputContext, method);
+ }
+ 
+ void Kimpanel::resume() {
+@@ -190,6 +210,7 @@
+                                           "org.freedesktop.DBus.Introspectable",
+                                           "Introspect");
+         relativeQuery_ = msg.callAsync(0, [this](dbus::Message &reply) {
++            auto query = std::move(relativeQuery_);
+             std::string s;
+             if (reply >> s) {
+                 if (s.find("SetRelativeSpotRect") != std::string::npos) {
+@@ -199,28 +220,15 @@
+                     hasRelativeV2_ = true;
+                 }
+             }
++            // 重载 UI 时客户端可能不会再次报告相同光标位置；在协议能力确定后刷新。
++            updateCursor(instance_->lastFocusedInputContext());
+             return true;
+         });
+     }
+ 
+     auto check = [this](Event &event) {
+-        if (!proxy_) {
+-            return;
+-        }
+         auto &icEvent = static_cast<InputContextEvent &>(event);
+-        auto *inputContext = icEvent.inputContext();
+-        if (inputContext->hasFocus()) {
+-            CursorRectMethod method = CursorRectMethod::SetSpotRect;
+-            if (inputContext->capabilityFlags().test(
+-                    CapabilityFlag::RelativeRect)) {
+-                if (hasRelativeV2_) {
+-                    method = CursorRectMethod::SetRelativeSpotRectV2;
+-                } else if (hasRelative_) {
+-                    method = CursorRectMethod::SetRelativeSpotRect;
+-                }
+-            }
+-            proxy_->updateCursor(inputContext, method);
+-        }
++        updateCursor(icEvent.inputContext());
+     };
+     eventHandlers_.emplace_back(
+         instance_->watchEvent(EventType::InputContextCursorRectChanged,

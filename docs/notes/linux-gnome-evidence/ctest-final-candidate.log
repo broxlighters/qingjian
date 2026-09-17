@@ -1,0 +1,81 @@
+Test project /home/szkj/project/qingjian/target/gnome-candidate-probe
+      Start  1: qingjian-size
+ 1/38 Test  #1: qingjian-size .......................   Passed    0.00 sec
+      Start  2: qingjian-upload
+ 2/38 Test  #2: qingjian-upload .....................   Passed    0.00 sec
+      Start  3: qingjian-integration
+ 3/38 Test  #3: qingjian-integration ................   Passed    0.07 sec
+      Start  4: qingjian-vkeyboard-visible
+ 4/38 Test  #4: qingjian-vkeyboard-visible ..........   Passed    0.07 sec
+      Start  5: qingjian-display-fcitx-inline
+ 5/38 Test  #5: qingjian-display-fcitx-inline .......   Passed    0.06 sec
+      Start  6: qingjian-display-fcitx-window
+ 6/38 Test  #6: qingjian-display-fcitx-window .......   Passed    0.06 sec
+      Start  7: qingjian-display-fcitx-both
+ 7/38 Test  #7: qingjian-display-fcitx-both .........   Passed    0.06 sec
+      Start  8: qingjian-display-auto-inline
+ 8/38 Test  #8: qingjian-display-auto-inline ........   Passed    0.05 sec
+      Start  9: qingjian-display-auto-window
+ 9/38 Test  #9: qingjian-display-auto-window ........   Passed    0.05 sec
+      Start 10: qingjian-display-auto-both
+10/38 Test #10: qingjian-display-auto-both ..........   Passed    0.04 sec
+      Start 11: qingjian-display-qingjian-inline
+11/38 Test #11: qingjian-display-qingjian-inline ....   Passed    0.05 sec
+      Start 12: qingjian-display-qingjian-window
+12/38 Test #12: qingjian-display-qingjian-window ....   Passed    0.05 sec
+      Start 13: qingjian-display-qingjian-both
+13/38 Test #13: qingjian-display-qingjian-both ......   Passed    0.05 sec
+      Start 14: qingjian-idle-disconnect
+14/38 Test #14: qingjian-idle-disconnect ............   Passed    0.26 sec
+      Start 15: qingjian-panel
+15/38 Test #15: qingjian-panel ......................   Passed    0.02 sec
+      Start 16: qingjian-foreign-callback
+16/38 Test #16: qingjian-foreign-callback ...........   Passed    0.09 sec
+      Start 17: qingjian-engine-appearance
+17/38 Test #17: qingjian-engine-appearance ..........   Passed    0.16 sec
+      Start 18: qingjian-gnome-origin
+18/38 Test #18: qingjian-gnome-origin ...............   Passed    0.06 sec
+      Start 19: qingjian-gnome-probe
+19/38 Test #19: qingjian-gnome-probe ................   Passed    1.00 sec
+      Start 20: qingjian-gnome-lost-painted
+20/38 Test #20: qingjian-gnome-lost-painted .........   Passed    0.82 sec
+      Start 21: qingjian-gnome-invalid-prepare
+21/38 Test #21: qingjian-gnome-invalid-prepare ......   Passed    0.56 sec
+      Start 22: qingjian-gnome-geometry
+22/38 Test #22: qingjian-gnome-geometry .............   Passed    0.09 sec
+      Start 23: qingjian-gnome-geometry-prepare
+23/38 Test #23: qingjian-gnome-geometry-prepare .....   Passed    0.09 sec
+      Start 24: qingjian-gnome-geometry-loop
+24/38 Test #24: qingjian-gnome-geometry-loop ........   Passed    0.31 sec
+      Start 25: qingjian-appearance
+25/38 Test #25: qingjian-appearance .................   Passed    0.02 sec
+      Start 26: qingjian-text-scale
+26/38 Test #26: qingjian-text-scale .................   Passed    0.02 sec
+      Start 27: qingjian-controller
+27/38 Test #27: qingjian-controller .................   Passed    0.94 sec
+      Start 28: qingjian-focusout-panel
+28/38 Test #28: qingjian-focusout-panel .............   Passed    0.06 sec
+      Start 29: qingjian-focusout-client
+29/38 Test #29: qingjian-focusout-client ............   Passed    0.04 sec
+      Start 30: qingjian-focusout-client-owned
+30/38 Test #30: qingjian-focusout-client-owned ......   Passed    0.04 sec
+      Start 31: qingjian-shift-unknown
+31/38 Test #31: qingjian-shift-unknown ..............   Passed    0.04 sec
+      Start 32: qingjian-shift-sensitive
+32/38 Test #32: qingjian-shift-sensitive ............   Passed    0.04 sec
+      Start 33: qingjian-shift-password
+33/38 Test #33: qingjian-shift-password .............   Passed    0.04 sec
+      Start 34: qingjian-deactivate-sensitive
+34/38 Test #34: qingjian-deactivate-sensitive .......   Passed    0.04 sec
+      Start 35: qingjian-deactivate-password
+35/38 Test #35: qingjian-deactivate-password ........   Passed    0.04 sec
+      Start 36: qingjian-deactivate-disabled
+36/38 Test #36: qingjian-deactivate-disabled ........   Passed    0.05 sec
+      Start 37: qingjian-capability-deactivate
+37/38 Test #37: qingjian-capability-deactivate ......   Passed    0.05 sec
+      Start 38: qingjian-uninstall-preserves-data
+38/38 Test #38: qingjian-uninstall-preserves-data ...   Passed    0.06 sec
+
+100% tests passed, 0 tests failed out of 38
+
+Total Test time (real) =   5.59 sec

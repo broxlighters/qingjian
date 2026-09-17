@@ -34,6 +34,9 @@ pub struct Theme {
     /// 窗口与高亮条的圆角。
     pub corner_radius: f32,
 
+    /// 云朵、光标、固定间距及有界面板阴影的逻辑倍率；平台 UI 大小使用。
+    pub decoration_scale: f32,
+
     /// 最多显示几行。
     pub max_rows: usize,
 
@@ -64,6 +67,7 @@ impl Theme {
             row_padding: 4.0,
             column_gap: 8.0,
             corner_radius: 8.0,
+            decoration_scale: 1.0,
             max_rows: 9,
             text_gamma,
         }

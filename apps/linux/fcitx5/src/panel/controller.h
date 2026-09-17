@@ -2,6 +2,8 @@
 #pragma once
 #include "identity.h"
 #include "mode.h"
+#include "size.h"
+#include "gnome/identity/focus.h"
 #include "backend/base.h"
 #include <fcitx-utils/event.h>
 #include <nlohmann/json.hpp>
@@ -11,6 +13,9 @@
 #include <string>
 namespace fcitx { class InputContext; }
 namespace qingjian::panel {
+#if defined(QJ_GNOME_PROBE)
+class GnomeProbe;
+#endif
 bool x11Display(const std::string &display);
 void prepareRenderer();
 class Controller final {
@@ -19,14 +24,16 @@ public:
     ~Controller();
     Controller(const Controller &) = delete;
     Controller &operator=(const Controller &) = delete;
-    void configure(RendererMode mode, fcitx::EventLoop *loop);
+    void configure(RendererMode mode, fcitx::EventLoop *loop, SizeOptions size = {});
     bool eligible(fcitx::InputContext *context) const;
+    bool canUpdate(fcitx::InputContext *context) const;
     bool renderFrame(fcitx::InputContext *context, const nlohmann::json &frame,
                      FrameIdentity identity, std::function<bool()> valid,
                      std::function<void(int)> action,
                      std::function<void(const nlohmann::json &)> acknowledge,
                      std::function<void()> fallback, std::chrono::steady_clock::time_point ready,
-                     bool systemDark = false);
+                     bool systemDark = false, double systemTextScale = 1.0,
+                     bool textScaleKnown = false, const FocusIdentity &focusIdentity = {});
     void registerCallback(fcitx::InputContext *context);
     void hide(fcitx::InputContext *context);
     void invalidate(fcitx::InputContext *context);
@@ -41,17 +48,28 @@ private:
     bool pollEvents(fcitx::InputContext *context, uint64_t submission, fcitx::IOEventFlags flags);
     bool checkHealth(fcitx::InputContext *context, uint64_t submission, fcitx::EventSourceTime *timer, uint64_t now);
     void releaseResult();
+    void discardFrame(fcitx::InputContext *context, bool withdraw);
     /// 当前输入帧开始 UI 处理的时间，不包含 IPC 等待。
     std::chrono::steady_clock::time_point ready_;
 
     /// 未验收场景不参与 auto。
     RendererMode mode_ = RendererMode::Fcitx;
 
+    SizeOptions size_;
+
+    /// 只记录尺寸变化，不在每次按键刷诊断；不含文字或光标位置。
+    std::string sizeDiagnostic_;
+
     /// Fcitx 主线程事件循环，生命期长于上下文。
     fcitx::EventLoop *loop_ = nullptr;
 
     /// 窗口随上下文销毁。
     std::shared_ptr<Backend> backend_;
+
+#if defined(QJ_GNOME_PROBE)
+    /// 隔离测试专用，不参与生产自动选择。
+    std::unique_ptr<GnomeProbe> gnomeProbe_;
+#endif
 
     /// 后端绑定的上下文 display；上下文迁移后重新建窗。
     std::string display_;

@@ -9,10 +9,18 @@ class Appearance final {
 public:
     Appearance(fcitx::EventLoop &loop, std::function<void()> changed);
     bool dark() const { return dark_; }
+    double textScale() const { return textScale_; }
+    bool textScaleKnown() const { return textScaleKnown_; }
 private:
     void update(const fcitx::dbus::Variant &value);
+    void updateTextScale(const fcitx::dbus::Variant &value);
     /// 没有偏好或 portal 不可用时采用浅色。
     bool dark_ = false;
+
+    /// portal 未提供文字偏好时不猜测 Xft DPI 中的组成。
+    double textScale_ = 1.0;
+
+    bool textScaleKnown_ = false;
 
     /// 仅在颜色发生变化时刷新当前有效帧。
     std::function<void()> changed_;
@@ -25,5 +33,9 @@ private:
 
     /// 初始化异步请求。
     std::unique_ptr<fcitx::dbus::Slot> pending_;
+
+    std::unique_ptr<fcitx::dbus::Slot> textSignal_;
+
+    std::unique_ptr<fcitx::dbus::Slot> textPending_;
 };
 }

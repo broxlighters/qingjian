@@ -164,6 +164,7 @@
   - [x] 候选窗渲染搬进 Server 进程 + `uiAccess` + 自签，覆盖微软商店 / 任务栏搜索等高 z-band 宿主
   - [ ] 发版：Certum 开源代码签名证书、`windows-v<版本>` 标签与 CI
 - [ ] Linux IBus / Fcitx（接入方案见 [fcitx5_support_plan.md](fcitx5_support_plan.md)；首版目标为 Fcitx5）
+- [ ] Linux X11 / Wayland 双模式正式支持：完成 Wayland popup 承载、X11/XWayland 验收、性能门槛与回退（见 [linux_dual_ui_support_plan.md](linux_dual_ui_support_plan.md)）。
 - [ ] 配置同步
 - [ ] 跨平台词库
 

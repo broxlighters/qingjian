@@ -1,0 +1,81 @@
+{
+  "recorded_at": "2026-09-17T10:54:22+08:00",
+  "commit": "37fa86094a995936e69489e4df9f4b643f42b8de",
+  "session": {
+    "XDG_SESSION_TYPE": "wayland",
+    "XDG_CURRENT_DESKTOP": "ubuntu:GNOME",
+    "DISPLAY": ":0",
+    "WAYLAND_DISPLAY": "wayland-0"
+  },
+  "monitors": [
+    {
+      "connector": "eDP-1",
+      "x": 0,
+      "y": 0,
+      "scale": 1.6666666269302368,
+      "primary": true,
+      "width_px": 2880,
+      "height_px": 1800,
+      "refresh_hz": 120.00048828125
+    },
+    {
+      "connector": "HDMI-1",
+      "x": 1728,
+      "y": 0,
+      "scale": 1.0,
+      "primary": false,
+      "width_px": 1920,
+      "height_px": 1080,
+      "refresh_hz": 60.0
+    }
+  ],
+  "layout_mode": 1,
+  "versions": {
+    "command": [
+      "dpkg-query",
+      "-W",
+      "gnome-shell",
+      "gjs",
+      "libmutter-18-0",
+      "fcitx5",
+      "libfcitx5utils-dev",
+      "libgtk-4-1",
+      "libqt6core6t64",
+      "wechat",
+      "ptyxis",
+      "gnome-text-editor",
+      "xwayland"
+    ],
+    "exit_code": 0,
+    "stdout": "fcitx5\t5.1.19-1\ngjs\t1.88.0-1\ngnome-shell\t50.1-0ubuntu1.1\ngnome-text-editor\t50.1-0ubuntu0.1\nlibfcitx5utils-dev:amd64\t5.1.19-1\nlibgtk-4-1:amd64\t4.22.4+ds-0ubuntu0.1\nlibmutter-18-0:amd64\t50.1-0ubuntu2.2\nlibqt6core6t64:amd64\t6.10.2+dfsg-7\nptyxis\t50.1-1ubuntu2\nwechat\t4.1.1.8\nxwayland\t2:24.1.10-1",
+    "stderr": ""
+  },
+  "text_scale": {
+    "command": [
+      "gsettings",
+      "get",
+      "org.gnome.desktop.interface",
+      "text-scaling-factor"
+    ],
+    "exit_code": 0,
+    "stdout": "1.0",
+    "stderr": ""
+  },
+  "xft": {
+    "command": [
+      "xrdb",
+      "-query"
+    ],
+    "exit_code": 0,
+    "stdout": "Xft.dpi:\t192",
+    "stderr": ""
+  },
+  "snap_apps": {
+    "exit_code": 0,
+    "stdout": "名称        版本              修订版本  追踪             发布者          注记\nchromium  151.0.7922.108  3507  latest/stable  canonical**  -\ncode      7debcd0e        264   latest/stable  vscode**     classic\nfirefox   155.0.1-1       8863  latest/stable  mozilla**    -"
+  },
+  "google_chrome": {
+    "status": "not_installed",
+    "evidence": "google-chrome not in PATH; no /opt/google/chrome or google-chrome desktop entry"
+  }
+}

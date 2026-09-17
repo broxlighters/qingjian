@@ -179,6 +179,12 @@ fn linux_ui_negotiates_after_legacy_open_and_binds_ack_to_connection() {
     let opened = read_message::<_, Value>(&mut stream).unwrap().unwrap();
     assert_eq!(opened["Update"]["linux_ui"]["version"], 1);
     assert_eq!(opened["Update"]["linux_ui"]["renderer"], "fcitx");
+    assert_eq!(opened["Update"]["linux_ui"]["size_version"], 1);
+    assert_eq!(opened["Update"]["linux_ui"]["ui_scale_percent"], 100);
+    assert_eq!(
+        opened["Update"]["linux_ui"]["follow_system_text_scale"],
+        true
+    );
     write_message(
         &mut stream,
         &json!({"LinuxHello": {"version": 1, "generation": 9, "context": "test-context"}}),

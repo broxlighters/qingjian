@@ -4,6 +4,7 @@ mod exposure;
 mod info;
 mod result;
 mod sense;
+mod size;
 use display::DisplayFrame;
 use exposure::Exposure;
 pub use info::ImageInfo;
@@ -13,6 +14,7 @@ pub use result::RenderResult;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 pub const ABI_VERSION: u32 = 1;
+pub const SIZE_ABI_VERSION: u32 = 1;
 const MAX_FRAME_JSON: usize = 262_144;
 
 #[unsafe(no_mangle)]
@@ -73,8 +75,43 @@ pub unsafe extern "C" fn qj_renderer_render(
     height: u32,
     dark: u32,
 ) -> *mut RenderResult {
+    unsafe {
+        qj_renderer_render_sized(
+            handle,
+            version,
+            SIZE_ABI_VERSION,
+            json,
+            length,
+            scale,
+            1.0,
+            1.0,
+            width,
+            height,
+            dark,
+        )
+    }
+}
+
+/// Linux 尺寸扩展；保留 ABI v1 原入口的单位大小行为。
+/// # Safety
+/// 句柄和 JSON 的有效性要求与 qj_renderer_render 一致。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn qj_renderer_render_sized(
+    handle: *mut Renderer,
+    version: u32,
+    size_version: u32,
+    json: *const u8,
+    length: usize,
+    scale: f32,
+    ui_scale: f32,
+    text_scale: f32,
+    width: u32,
+    height: u32,
+    dark: u32,
+) -> *mut RenderResult {
     if handle.is_null()
         || version != ABI_VERSION
+        || size_version != SIZE_ABI_VERSION
         || json.is_null()
         || length == 0
         || length > MAX_FRAME_JSON
@@ -94,17 +131,21 @@ pub unsafe extern "C" fn qj_renderer_render(
                 LayoutMode::Vertical => Layout::Vertical,
                 LayoutMode::Horizontal => Layout::Horizontal,
             },
-            theme: match protocol.theme {
-                ThemeMode::Dark => Theme::dark(),
-                ThemeMode::Light => Theme::light(),
-                ThemeMode::System => {
-                    if dark == 1 {
-                        Theme::dark()
-                    } else {
-                        Theme::light()
+            theme: size::scaled_theme(
+                match protocol.theme {
+                    ThemeMode::Dark => Theme::dark(),
+                    ThemeMode::Light => Theme::light(),
+                    ThemeMode::System => {
+                        if dark == 1 {
+                            Theme::dark()
+                        } else {
+                            Theme::light()
+                        }
                     }
-                }
-            },
+                },
+                ui_scale,
+                text_scale,
+            )?,
             page: protocol.page,
             page_count: protocol.page_count,
         };

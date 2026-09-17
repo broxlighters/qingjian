@@ -3,6 +3,10 @@
 #include "backend/probe.h"
 #include "backend/selector.h"
 #include "interaction/action.h"
+#include "update_guard.h"
+#if defined(QJ_GNOME_PROBE)
+#include "gnome/probe.h"
+#endif
 #include <fcitx/inputcontext.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx-utils/log.h>
@@ -48,12 +52,20 @@ Controller::~Controller() {
     releaseResult();
     if (clearTextCache_) clearTextCache_();
 }
-void Controller::configure(RendererMode mode, fcitx::EventLoop *loop) {
+void Controller::configure(RendererMode mode, fcitx::EventLoop *loop, SizeOptions size) {
     mode_ = mode;
     loop_ = loop;
+    size_ = size;
 }
 bool Controller::eligible(fcitx::InputContext *context) const {
     return rejection(context) == nullptr;
+}
+bool Controller::canUpdate(fcitx::InputContext *context) const {
+#if defined(QJ_GNOME_PROBE)
+    if (active_ && gnomeProbe_ && GnomeProbe::eligible(context)) return eligible(context);
+#endif
+    return active_ && backend_ && !backendFailed_ && context && display_ == context->display() &&
+        x11Display(display_) && eligible(context);
 }
 const char *Controller::rejection(fcitx::InputContext *context) const {
     if (mode_ == RendererMode::Fcitx) return "配置使用 Fcitx 面板";
@@ -62,6 +74,9 @@ const char *Controller::rejection(fcitx::InputContext *context) const {
         context->capabilityFlags().test(fcitx::CapabilityFlag::Disable) ||
         context->capabilityFlags() == fcitx::CapabilityFlags()) return "私密或未知输入能力";
 #if defined(QJ_RENDER_FFI)
+    #if defined(QJ_GNOME_PROBE)
+    if (mode_ == RendererMode::Qingjian && loop_ && GnomeProbe::eligible(context)) return nullptr;
+    #endif
     const auto probe = probeBackend(context->display());
     if (!probe.available && !(injected_ && probe.display == DisplayKind::X11)) return probe.reason;
     if (mode_ == RendererMode::Auto && !probe.validated) return "该后端尚未通过桌面和性能验收，auto 保留默认面板";
@@ -83,8 +98,11 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
                              std::function<void(int)> actionCallback,
                              std::function<void(const nlohmann::json &)> acknowledge,
                              std::function<void()> fallback, std::chrono::steady_clock::time_point ready,
-                             bool systemDark) try {
-    hide(context);
+                             bool systemDark, double systemTextScale, bool textScaleKnown,
+                             [[maybe_unused]] const FocusIdentity &focusIdentity) try {
+    const bool updating = canUpdate(context);
+    discardFrame(context, !updating);
+    UpdateGuard cleanup([this, context] { hide(context); });
     ready_ = ready;
 #if defined(QJ_RENDER_FFI)
     if (const auto *reason = rejection(context)) return unavailable(reason);
@@ -94,6 +112,21 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     clearTextCache_ = [weak = std::weak_ptr<QjRenderer>(engine)] {
         if (auto current = weak.lock()) qj_renderer_clear_text_cache(current.get());
     };
+#if defined(QJ_GNOME_PROBE)
+    if (mode_ == RendererMode::Qingjian && GnomeProbe::eligible(context)) {
+        if (!gnomeProbe_) gnomeProbe_ = std::make_unique<GnomeProbe>(*loop_);
+        auto watched = context->watch();
+        active_ = gnomeProbe_->render(context, engine, frame, size_, systemTextScale, systemDark,
+            std::move(valid), std::move(actionCallback), std::move(acknowledge),
+            [this, watched, fallback = std::move(fallback)] {
+                auto *current = watched.get();
+                hide(current);
+                if (current && fallback) fallback();
+            }, focusIdentity);
+        if (active_) cleanup.accepted();
+        return active_;
+    }
+#endif
     if ((!display_.empty() && display_ != context->display()) || (backendFailed_ && !injected_)) {
         health_.reset();
         io_.reset();
@@ -109,14 +142,28 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
     const auto bounds = backend_->bounds(context->cursorRect());
     if (bounds.width() <= 0 || bounds.height() <= 0) return unavailable("没有有效的屏幕可用区域");
     const auto body = frame.dump();
-    result_ = qj_renderer_render(engine.get(), QJ_RENDER_ABI_VERSION,
+    const auto textScale = size_.textScale(systemTextScale);
+    result_ = qj_renderer_render_sized(engine.get(), QJ_RENDER_ABI_VERSION, QJ_RENDER_SIZE_ABI_VERSION,
         reinterpret_cast<const uint8_t *>(body.data()), body.size(), scale,
+        size_.uiScale, textScale,
         std::min(bounds.width(), 1600), std::min(bounds.height(), 900),
         systemDark);
     if (!result_) return unavailable("位图渲染失败");
     QjImageInfo image{};
     if (!qj_result_image(static_cast<QjResult *>(result_), &image) ||
         (image.width == 1 && image.height == 1)) { releaseResult(); return false; }
+    const auto diagnostic = nlohmann::json({{"backend", "xcb"}, {"frontend", context->frontend()},
+        {"coordinates", "x11-root-pixels"}, {"context_scale", scale},
+        {"raster_scale", scale}, {"raster_source", "context-unverified"},
+        {"output_scale", nullptr}, {"xft_dpi", nullptr}, {"ui_scale", size_.uiScale},
+        {"system_text_scale", systemTextScale}, {"text_scale", textScale},
+        {"text_source", textScaleKnown ? "portal" : "default-unavailable"},
+        {"pixel_size", {image.width, image.height}},
+        {"logical_size", {image.width / scale, image.height / scale}}}).dump();
+    if (sizeDiagnostic_ != diagnostic) {
+        sizeDiagnostic_ = diagnostic;
+        if (std::getenv("QINGJIAN_UI_DIAGNOSTICS")) FCITX_INFO() << "青简尺寸诊断：" << diagnostic;
+    }
     identity_ = std::move(identity);
     valid_ = std::move(valid);
     action_ = std::move(actionCallback);
@@ -136,10 +183,11 @@ bool Controller::renderFrame(fcitx::InputContext *context, const nlohmann::json 
         });
     if (!health_) { hide(context); return unavailable("无法注册窗口健康检查"); }
     registerCallback(context);
+    cleanup.accepted();
     return true;
 #else
     (void)frame; (void)identity; (void)valid; (void)actionCallback;
-    (void)acknowledge; (void)fallback; (void)systemDark;
+    (void)acknowledge; (void)fallback; (void)systemDark; (void)systemTextScale; (void)textScaleKnown;
     return unavailable("当前构建未启用自绘");
 #endif
 } catch (const std::exception &) {
@@ -253,12 +301,18 @@ bool Controller::click(int x, int y, unsigned button) {
     return true;
 }
 void Controller::hide(fcitx::InputContext *context) {
+    discardFrame(context, true);
+}
+void Controller::discardFrame(fcitx::InputContext *context, bool withdraw) {
+#if defined(QJ_GNOME_PROBE)
+    if (gnomeProbe_ && withdraw) gnomeProbe_->hide();
+#endif
     ++submission_;
     active_ = false;
     identity_ = {};
     if (health_) health_->setEnabled(false);
     if (io_) io_->setEnabled(false);
-    if (backend_) { backend_->hide(); backend_->drain(); }
+    if (backend_) { if (withdraw) backend_->hide(); backend_->drain(); }
     releaseResult();
     valid_ = {}; action_ = {}; acknowledge_ = {}; fallback_ = {};
     if (context) context->inputPanel().setCustomInputPanelCallback({});

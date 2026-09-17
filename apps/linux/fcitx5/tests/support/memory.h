@@ -18,7 +18,7 @@ public:
         shown = !fail;
         return shown;
     }
-    void hide() override { shown = false; }
+    void hide() override { shown = false; ++hides; }
     void drain() override {
         char signal;
         while (read(pipe_[0], &signal, 1) == 1) {}
@@ -42,6 +42,8 @@ public:
 
     /// 当前是否成功提交位图。
     bool shown = false;
+
+    unsigned hides = 0;
 
     /// 注入贴图失败，不影响真实渲染结果。
     bool fail = false;

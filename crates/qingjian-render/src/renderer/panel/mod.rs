@@ -14,6 +14,8 @@ impl Renderer {
         let (width, height) = (config.max_width, config.max_height);
         if !config.scale.is_finite()
             || !(0.5..=4.0).contains(&config.scale)
+            || !config.theme.decoration_scale.is_finite()
+            || !(0.5..=3.0).contains(&config.theme.decoration_scale)
             || width == 0
             || height == 0
             || width > 8192
@@ -39,7 +41,9 @@ impl Renderer {
                 timing: RenderTiming::default(),
             });
         }
-        let shadow = Shadow::mac_panel();
+        let mut shadow = Shadow::mac_panel();
+        shadow.blur *= config.theme.decoration_scale;
+        shadow.offset_y *= config.theme.decoration_scale;
         let m = Metrics {
             theme: &config.theme,
             scale: config.scale,

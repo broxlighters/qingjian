@@ -1,0 +1,38 @@
+{
+  "scope": "隔离真实GNOME Shell截图，固定输入。Actor状态是stage逻辑坐标；PNG为截图输出像素，混合输出不得统一倍率换算。没有<=2逻辑像素测量或物理桌面验收。",
+  "images": [
+    {
+      "file": "candidate-100.png",
+      "source": "target/gnome-identity/shell-21kzaf_i",
+      "png_pixels": [
+        1280,
+        720
+      ],
+      "output_scale": 1,
+      "sha256": "59878d7d9731c5f6f357f19c55459dacd830af6c1f8124ac9651a4868e65451a"
+    },
+    {
+      "file": "candidate-167.png",
+      "source": "target/gnome-identity/shell-8wp_ow7b",
+      "png_pixels": [
+        2880,
+        1800
+      ],
+      "output_scale": 1.6666666666666667,
+      "sha256": "40d912ef8651fb27cb9e6b7fb42e7dc5ff7a8658e83e47b799e32ee260e6a30d"
+    },
+    {
+      "file": "candidate-dual.png",
+      "source": "target/gnome-identity/repro/shell-np04sqcs",
+      "png_pixels": [
+        6080,
+        1800
+      ],
+      "output_scale": [
+        1.6666666666666667,
+        1
+      ],
+      "sha256": "a55796acb05a40b5eaa9f93f06052efe2db5c80aae3ca9a4348aeddfb3de00d3"
+    }
+  ]
+}
