@@ -96,7 +96,7 @@ Engine 侧在 `engine/rescoring/`：接了打分器就取 Viterbi 前 `RESCORE_P
 
 ## crates/qingjian-render
 
-Linux 尺寸扩展在 `render-ffi` 主题副本分别应用用户 UI 倍率 `u` 与文字倍率 `t`：字体/行高乘 `u×t`，主题间距/圆角乘 `u`，`Theme.decoration_scale` 让固定云朵、光标、间距及有界面板阴影同样乘 `u`；最后由独立栅格倍率 `r` 渲染。共享主题 `decoration_scale=1`，其他平台默认输出不变。`qj_renderer_render_sized` 通过独立 `SIZE_ABI_VERSION=1` 校验参数，原 `qj_renderer_render` ABI v1 仍固定 `u=t=1`。Linux `LinuxHello` v1 以可选 `size_version=1` 传配置，缺字段按默认处理；不改公共候选协议。
+Linux 尺寸扩展在 `render-ffi` 主题副本分别应用用户 UI 倍率 `u` 与文字倍率 `t`：字体/行高乘 `u×t`，主题间距/圆角乘 `u`，`Theme.decoration_scale` 让固定云朵、光标、间距、竖排最小宽度及有界面板阴影同样乘 `u`；最后由独立栅格倍率 `r` 渲染。共享主题 `decoration_scale=1`，其他平台默认输出不变。`qj_renderer_render_sized` 通过独立 `SIZE_ABI_VERSION=1` 校验参数，原 `qj_renderer_render` ABI v1 仍固定 `u=t=1`。Linux `LinuxHello` v1 以可选 `size_version=1` 传配置，缺字段按默认处理；不改公共候选协议。
 
 自绘渲染器：候选窗一帧 + 主题 → 预乘 RGBA 位图，tiny-skia 栅格 + cosmic-text 文字（fontdb 按平台清单只加载几个字体文件、不扫系统），
 自己解析 `trak` 字距表、按主题 gamma 加深笔画；cosmic-text 打了 `opsz` 光学字号补丁（qingjian-team/cosmic-text 分支 `qingjian-opsz`，workspace `[patch.crates-io]` 钉 rev）。
