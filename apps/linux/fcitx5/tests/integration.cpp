@@ -27,8 +27,16 @@ int main(int argc, char **argv) {
         return 0;
     }
     assert(consumed);
-    assert(context.inputPanel().clientPreedit().empty() == (mode == "window"));
-    assert(context.inputPanel().preedit().empty() == (mode == "inline"));
+    const bool hasClient = mode != "window" && mode != "empty-client";
+    const bool hasWindow = mode != "inline" && mode != "empty-window";
+    assert(context.inputPanel().clientPreedit().empty() == !hasClient);
+    assert(context.inputPanel().preedit().empty() == !hasWindow);
+    assert(static_cast<qingjian::Session *>(context.property("qingjian-session"))->clientPreedit == hasClient);
+    if (hasClient) {
+        assert(context.inputPanel().clientPreedit().toString() == "nihao");
+        assert(context.inputPanel().clientPreedit().cursor() == 5);
+    }
+    if (hasWindow) assert(context.inputPanel().preedit().toString() == "ni'hao");
     auto candidates = context.inputPanel().candidateList();
     assert(candidates && candidates->size() == 3 && candidates->toPageable()->hasNext());
     assert(candidates->candidate(2).comment().toString() == "hello · 生");

@@ -43,13 +43,13 @@ struct Mock {
         auto opened = readMessage(fd).at("OpenSession");
         const auto session = opened.at("session");
         assert(opened.at("protocol") == 6);
-        writeMessage(fd, {{"Update", {{"session", session}, {"linux_ui", {{"version", mode == "mismatch" ? 2 : 3}}}}}});
+        writeMessage(fd, {{"Update", {{"session", session}, {"client_preedit", {{"text", ""}, {"cursor_bytes", 0}}}, {"linux_ui", {{"version", mode == "mismatch" ? 3 : 4}}}}}});
         if (mode == "mismatch") { close(fd); return; }
         auto identity = readMessage(fd).at("LinuxHello");
-        assert(identity.at("version") == 3);
+        assert(identity.at("version") == 4);
         identity.erase("version"); identity.erase("session");
         identity["revision"] = 0;
-        writeMessage(fd, {{"LinuxHello", {{"version", 3}, {"session", session}, {"preedit", mode == "inline" || mode == "window" ? mode : "both"}}}});
+        writeMessage(fd, {{"LinuxHello", {{"version", 4}, {"session", session}, {"preedit", mode == "inline" || mode == "window" ? mode : "both"}}}});
         auto frame = emptyFrame();
         char byte;
         while (recv(fd, &byte, 1, MSG_PEEK) > 0) {
@@ -61,7 +61,7 @@ struct Mock {
             Json commit = nullptr;
             std::string outcome = "Passthrough";
             if (event.contains("Key") && !event.at("Key").at("release").get<bool>() && event.at("Key").at("event").at("character") == "n") {
-                frame = Json::parse(R"({"preedit":[{"text":"ni","kind":"Typed"}],"cursor":2,"candidates":{"items":[{"text":"","translation":null},{"text":"","translation":null},{"text":"你好","translation":{"senses":[{"text":"hello","fresh":true}]}}]},"highlight":2,"page":0,"page_count":2,"notice":null})");
+                frame = Json::parse(R"({"preedit":[{"text":"ni'hao","kind":"Typed"}],"cursor":6,"candidates":{"items":[{"text":"","translation":null},{"text":"","translation":null},{"text":"你好","translation":{"senses":[{"text":"hello","fresh":true}]}}]},"highlight":2,"page":0,"page_count":2,"notice":null})");
                 outcome = "Consumed";
             }
             if (event.contains("Candidate")) {
@@ -74,11 +74,15 @@ struct Mock {
             if (event.contains("Capabilities") || event == "Reset") frame = emptyFrame();
             if (event.contains("Deactivate")) {
                 const auto &facts = event.at("Deactivate");
-                if (!facts.at("capability_changed").get<bool>() && !(facts.at("focus_out").get<bool>() && facts.at("client_preedit").get<bool>()) && !frame.at("preedit").empty()) commit = "ni";
+                if (!facts.at("capability_changed").get<bool>() && !(facts.at("focus_out").get<bool>() && facts.at("client_preedit").get<bool>()) && !frame.at("preedit").empty()) commit = "nihao";
                 frame = emptyFrame();
             }
             identity["revision"] = identity.at("revision").get<uint64_t>() + 1;
-            writeMessage(fd, {{"KeyResult", {{"session", session}, {"identity", identity}, {"frame", frame}, {"commit", commit}, {"outcome", outcome}}}});
+            Json preedit = {{"text", frame.at("preedit").empty() ? "" : "nihao"}, {"cursor_bytes", frame.at("preedit").empty() ? 0 : 5}};
+            auto display = frame;
+            if (mode == "empty-client") preedit = {{"text", ""}, {"cursor_bytes", 0}};
+            if (mode == "empty-window") display["preedit"] = Json::array();
+            writeMessage(fd, {{"KeyResult", {{"session", session}, {"identity", identity}, {"frame", display}, {"client_preedit", preedit}, {"commit", commit}, {"outcome", outcome}}}});
             if (mode == "failure" && event.contains("Key")) {
                 messages.push_back(readMessage(fd)); // 默认面板反馈。
                 break;

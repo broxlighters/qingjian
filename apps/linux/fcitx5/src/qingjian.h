@@ -5,6 +5,7 @@
 #include <fcitx/inputmethodengine.h>
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/instance.h>
+#include <fcitx/text.h>
 namespace fcitx {
 class QingjianEngine final : public InputMethodEngineV2 {
 public:
@@ -21,7 +22,7 @@ private:
     bool connect(InputContext *context);
     bool syncPrivacy(InputContext *context);
     bool exchange(InputContext *context, const nlohmann::json &event, bool display = true);
-    void render(InputContext *context, const nlohmann::json &frame);
+    void render(InputContext *context, const nlohmann::json &frame, const Text &client);
 
     Instance *instance_;
 

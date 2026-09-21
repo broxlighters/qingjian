@@ -8,6 +8,8 @@
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputpanel.h>
 #include <fcitx/userinterfacemanager.h>
+#include <fcitx-utils/utf8.h>
+#include <limits>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
@@ -21,6 +23,20 @@ std::string contextIdentity(const InputContext *context) {
     out << std::hex << std::setfill('0');
     for (auto byte : context->uuid()) out << std::setw(2) << static_cast<unsigned>(byte);
     return out.str();
+}
+Text clientPreedit(const nlohmann::json &value) {
+    const auto text = value.at("text").get<std::string>();
+    const auto &position = value.at("cursor_bytes");
+    if (!position.is_number_unsigned() || !utf8::validate(text))
+        throw std::runtime_error("client preedit type");
+    const auto cursor = position.get<uint64_t>();
+    if (cursor > text.size() || cursor > static_cast<uint64_t>(std::numeric_limits<int>::max())
+        || (cursor < text.size() && (static_cast<unsigned char>(text[cursor]) & 0xc0) == 0x80))
+        throw std::runtime_error("client preedit cursor");
+    Text preedit;
+    if (!text.empty()) preedit.append(text, TextFormatFlag::Underline);
+    preedit.setCursor(static_cast<int>(cursor));
+    return preedit;
 }
 }
 QingjianEngine::QingjianEngine(AddonManager *manager)
@@ -151,10 +167,12 @@ bool QingjianEngine::connect(InputContext *context) {
         nlohmann::json response;
         if (!shared_->connection.send({{"OpenSession", {{"session", session->id}, {"app", context->program()}, {"protocol", 6}}}}, &response)
             || response.at("Update").at("session") != session->id
-            || response.at("Update").at("linux_ui").at("version") != 3)
+            || response.at("Update").at("linux_ui").at("version") != 4)
             throw std::runtime_error("protocol mismatch");
-        if (!shared_->connection.send({{"LinuxHello", {{"version", 3}, {"session", session->id}, {"generation", session->generation}, {"context", contextIdentity(context)}}}}, &response)
-            || response.at("LinuxHello").at("version") != 3 || response.at("LinuxHello").at("session") != session->id) throw std::runtime_error("linux handshake");
+        if (!clientPreedit(response.at("Update").at("client_preedit")).empty())
+            throw std::runtime_error("initial preedit");
+        if (!shared_->connection.send({{"LinuxHello", {{"version", 4}, {"session", session->id}, {"generation", session->generation}, {"context", contextIdentity(context)}}}}, &response)
+            || response.at("LinuxHello").at("version") != 4 || response.at("LinuxHello").at("session") != session->id) throw std::runtime_error("linux handshake");
         session->preeditMode = response.at("LinuxHello").at("preedit").get<std::string>();
         if (session->preeditMode != "both" && session->preeditMode != "window" && session->preeditMode != "inline")
             throw std::runtime_error("preedit mode");
@@ -218,8 +236,11 @@ bool QingjianEngine::exchange(InputContext *context, const nlohmann::json &event
         // 显示 API 可同步重入能力 / 焦点 / Reset 事件。提交前再核对生命周期，
         // 撤销旧上下文结果时仍保留 Consumed，防止选词键再次透传。
         bool validDisplayFailure = false;
-        if (display) {
-            try { render(context, result.at("frame")); }
+        {
+            try {
+                auto preedit = clientPreedit(result.at("client_preedit"));
+                if (display) render(context, result.at("frame"), preedit);
+            }
             catch (const std::exception &) {
                 if (watched.get()) {
                     validDisplayFailure = session->displayIdentity == identity;
@@ -276,7 +297,7 @@ bool QingjianEngine::process(InputContext *context, const Key &key, bool release
     if (!connect(context) || !watched.get() || !syncPrivacy(context) || !watched.get()) return false;
     return exchange(context, {{"Key", {{"event", qingjian::mapKey(key)}, {"release", release}}}});
 }
-void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) {
+void QingjianEngine::render(InputContext *context, const nlohmann::json &frame, const Text &client) {
     auto *session = context->propertyFor(&sessions_);
     const auto identity = session->displayIdentity;
     const auto revision = ++session->revision;
@@ -327,9 +348,9 @@ void QingjianEngine::render(InputContext *context, const nlohmann::json &frame) 
     auto &panel = context->inputPanel();
     panel.reset();
     const bool inlinePreedit = context->capabilityFlags().test(CapabilityFlag::Preedit) && session->preeditMode != "window";
-    if (inlinePreedit) panel.setClientPreedit(preedit);
+    if (inlinePreedit) panel.setClientPreedit(client);
     if (session->preeditMode != "inline" || !inlinePreedit) panel.setPreedit(preedit);
-    session->clientPreedit = inlinePreedit && !preedit.empty();
+    session->clientPreedit = inlinePreedit && !client.empty();
     if (!items.empty()) panel.setCandidateList(std::move(list));
     if (frame.at("notice").is_string()) panel.setAuxDown(Text(frame.at("notice").get<std::string>()));
     context->updatePreedit();

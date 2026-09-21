@@ -16,10 +16,14 @@ fn open(stream: &mut UnixStream, id: u64) {
         stream,
         json!({"OpenSession": {"session": id, "app": "multiplex", "protocol": PROTOCOL_VERSION}}),
     );
-    assert_eq!(response["Update"]["linux_ui"]["version"], 3);
+    assert_eq!(response["Update"]["linux_ui"]["version"], 4);
+    assert_eq!(
+        response["Update"]["client_preedit"],
+        json!({"text": "", "cursor_bytes": 0})
+    );
     let hello = exchange(
         stream,
-        json!({"LinuxHello": {"version": 3, "session": id, "generation": 1, "context": format!("context-{id}")}}),
+        json!({"LinuxHello": {"version": 4, "session": id, "generation": 1, "context": format!("context-{id}")}}),
     );
     assert_eq!(hello["LinuxHello"]["session"], id);
     let acknowledged = exchange(
@@ -103,10 +107,10 @@ fn rejects_old_missing_duplicate_and_unnegotiated_messages() {
             json!({"OpenSession": {"session": 1, "app": null, "protocol": PROTOCOL_VERSION}}),
         );
         let hello =
-            json!({"LinuxHello": {"version": 3, "session": 1, "generation": 1, "context": "a"}});
+            json!({"LinuxHello": {"version": 4, "session": 1, "generation": 1, "context": "a"}});
         let mut invalid = hello.clone();
         match scenario {
-            0 => invalid["LinuxHello"]["version"] = json!(2),
+            0 => invalid["LinuxHello"]["version"] = json!(3),
             1 => {
                 invalid["LinuxHello"]
                     .as_object_mut()

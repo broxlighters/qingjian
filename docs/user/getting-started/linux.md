@@ -42,6 +42,8 @@ apps/linux/scripts/install.sh
 
 首次运行生成 `~/.config/qingjian/config.toml`，修改后重启青简服务。
 `[general] preedit` 可设为 `both`（行内和候选窗口）、`inline`（只在行内）、`window`（只在候选窗口）；应用不支持行内显示时使用候选窗口。
+行内显示原样输入，例如 `nihao`；候选窗口保留分节显示 `ni'hao`、纠错提示和双拼解码。选择 `inline` 时，这些提示不会出现在应用行内。
+未选词就切换窗口或输入框时，尚未上屏的内容原样上屏一次：`nihao` 保持为 `nihao`，实际输入的 `xi'an` 保留分隔符，双拼保留按键，注音输出注音符号。
 每页候选数、翻页键、学习、日志和辅助语言使用同一配置文件。`learning_language = "off"` 关闭中文候选的辅助语言释义与生词标记。系统面板外观由 Fcitx5 设置控制。
 
 `[general] shift_letter = "compose"` 让 Shift 大写字母参与中文组句，默认 `"passthrough"` 保持临时英文输入。
@@ -57,6 +59,7 @@ Fcitx5 识别为敏感输入时，可以组句但不会保存输入文本或学�
 ## 更新和卸载
 
 结束手动启动的青简服务，重复执行安装命令，然后重启 Fcitx5 和青简。安装会检查文件归属；目标文件被手动修改时会提示保留，请先备份处理。
+请同时更新青简服务和 Fcitx5 插件；两者版本不匹配时不会接管输入。
 
 ```sh
 apps/linux/scripts/uninstall.sh

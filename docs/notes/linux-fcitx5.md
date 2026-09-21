@@ -22,6 +22,8 @@ python3 apps/linux/tests/installation.py
 ```
 
 CTest 的 `real-server` 实际运行 Rust Server 并通过 InputContext 输入与点击，默认二进制位置 `target/debug/qingjian-linux-server`。
+`focusout-*` 用真实 Server / Fcitx 事件检查 `nihao` 在三种预编辑模式、框架 / 客户端提交及无行内能力下只提交一次；客户端用 `toString()` 模拟只传显示串的输入通路。`raw-*` 覆盖显式分隔、大小写、纠错、双拼、注音、编辑、部分选词及隐私状态；`preedit-*` 验证坏快照清理与 Consumed / 有效提交保护。
+当前 Linux 壳尚未接入辅码按键，辅码边界由 Server 单元测试直接注入 Core 辅码态验证，不将普通 `;` 输入误当作辅码验收。
 自定义 Cargo target 时传 `-DQINGJIAN_SERVER_EXECUTABLE=/绝对路径/qingjian-linux-server`。
 测试实例关闭所有 Fcitx addon，不依赖桌面总线；插件初始化本身也不连接 D-Bus。真实桌面测试才需要 `fcitx5-modules`、GTK / Qt 输入模块及 `dbus-run-session`。
 
@@ -29,10 +31,14 @@ CTest 的 `real-server` 实际运行 Rust Server 并通过 InputContext 输入�
 
 同用户 Unix socket，长度前缀为 4 字节小端，单消息上限 16 MiB；每次插件收发共用 200 ms 截止时间。
 插件只持有一条连接和一个 I/O watcher，每个 InputContext 分配独立、递增的 session ID。
-每个会话先 `OpenSession` 校验共享协议版本（6），再协商 `LinuxHello` v3，携带 session/generation/context，返回会话编号和既有预编辑设置。
+每个会话先 `OpenSession` 校验共享协议版本（6），再协商 `LinuxHello` v4，携带 session/generation/context，返回会话编号和既有预编辑设置。
 首次能力确认前不接受输入；握手与能力状态逐会话保存。同一连接支持超过 64 个上下文，64 条连接的资源保护不限制单连接会话数。
-Linux 的首个回包仍是含 `linux_ui` 的 `Update`，不额外发送 Windows DLL 使用的 `SessionOpened`；旧版插件的协议 5 连接会被拒绝，升级时需同时更新 Server 与插件。
-旧版本或损坏响应关闭连接、清空显示并放行当前输入；重连创建全新输入状态，旧提交不会重放。
+Linux 的首个回包仍是含 `linux_ui` 的 `Update`，不额外发送 Windows DLL 使用的 `SessionOpened`；不匹配共享版本或 Linux 扩展版本（包括 v3）的连接在输入前拒绝，升级时需同时更新 Server 与插件。
+
+Linux JSON 的 `KeyResult` / `Update` 另带 `client_preedit: { text, cursor_bytes }`，在事件完成后只读当前可显示会话的 `Engine::raw_preedit()`；初始化、失焦、停用、禁用和其他会话的清理响应明确传空文本 / 0。它与 `frame` 共用同一会话及显示身份，不缓存敏感文本，不修改共享 `Frame` 或协议 6。
+候选窗口仍使用 `frame.preedit` 与字符光标，应用行内单独使用原样文本与 UTF-8 字节光标。插件验证字段类型、UTF-8、范围和字符边界；`clientPreedit` 事实仅在确实提供非空行内文本时成立。
+普通失焦有行内文本时，Fcitx 或声明 `ClientUnfocusCommit` 的客户端提交该文本，Server 结束组合但不重复返回 commit；无行内文本及普通输入法切换由 Server 原样提交。Reset、Password / Disable 和能力变化停用继续丢弃。行内不携带自动分节 / 纠错 / 双拼解码提示，窗口显示保持原样。
+旧版本或损坏响应关闭连接、清空显示；未接受的输入放行，已校验为 Consumed 的输入保持消费。重连创建全新输入状态，旧提交不会重放。
 显示 API 同步触发能力变化、失焦或 Reset 时，插件在最终上屏前撤销旧生命周期响应，但保持已接受按键的 Consumed 结果；纯显示失败仍交付有效提交。
 
 同一上下文停用后保留会话和中英模式；Reset 只丢弃输入。Password / Disable 关闭目标会话，恢复普通输入后分配新编号。
@@ -66,3 +72,7 @@ FocusOut 的行内预编辑由框架或声明 ClientUnfocusCommit 的客户端�
 - 真实桌面（2026-09-20）：GNOME 50 原生 Wayland，文本编辑器（GTK4）、FeatherPad（Qt6）、Firefox（snap）。Ubuntu 26.04 的 GNOME 已没有 X11 登录项。
   默认面板的外观与位置由 Fcitx5 决定：GTK4 应用里是输入模块自己画的黑白面板，Firefox 里是 Fcitx5 的橙色面板且与光标同一行，Fcitx5 自带拼音表现相同。
 - 未验证：KDE 与其他桌面、其他发行版、GTK3 / Qt5 应用、真实 X11 桌面会话。
+
+2026-09-21 原样失焦专项：Ubuntu 26.04、GNOME 50.1 原生 Wayland 物理桌面、Fcitx5 5.1.19、GNOME Text Editor 50.1，使用独立配置与私有 Fcitx D-Bus。
+输入 `nihao`，以 Alt+Escape 切换到另一个测试窗口，再返回保存并读取磁盘文档：修复前 `both` / `inline` 得到 `ni'hao`，`window` 得到 `nihao`；修复后三种模式均为 `nihao`。重复失焦不重复，随后输入 `hao` 并选词正常。同一应用还验证了 `xi'an`、`NiHao`、中间光标、小鹤 `nihc` 和注音 `su3cl3` → `ㄋㄧˇㄏㄠˇ`。
+补充的隔离无显示器 GNOME 原生 Wayland 会话中，FeatherPad 1.6.3 的 `both` / `inline` 与 Firefox 156 的三种模式通过前后对照；Firefox 从 snap 包内直接运行二进制，此结果不代表 snap 沙箱路径。FeatherPad 的 `window` 存在间歇保存空串的结果，窗口切换时序仍待诊断，尚未通过该路径验收。Xvfb 下 GTK4 10 项、Qt6 11 项输入回归通过，包含 Qt 敏感输入不落盘；这些隔离结果不作为物理桌面验证。
