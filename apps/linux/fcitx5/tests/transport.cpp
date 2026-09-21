@@ -26,23 +26,33 @@ int main(int argc, char **argv) {
         auto opened = readMessage(connection).at("OpenSession");
         const auto session = opened.at("session");
         assert(opened.at("protocol") == 6);
-        writeMessage(connection, {{"Update", {{"session", session}, {"linux_ui", {{"version", failure == "old-version" ? 2 : 3}}}}}});
+        writeMessage(connection, {{"Update", {{"session", session}, {"client_preedit", {{"text", ""}, {"cursor_bytes", 0}}}, {"linux_ui", {{"version", failure == "old-version" ? 3 : 4}}}}}});
         if (failure != "old-version") {
             auto identity = readMessage(connection).at("LinuxHello");
             identity.erase("version"); identity.erase("session"); identity["revision"] = 1;
-            writeMessage(connection, {{"LinuxHello", {{"session", session}, {"version", 3}, {"preedit", "both"}}}});
+            writeMessage(connection, {{"LinuxHello", {{"session", session}, {"version", 4}, {"preedit", "both"}}}});
             for (const auto *name : {"Capabilities", "Focus"}) {
                 const auto event = readMessage(connection).at("LinuxEvent").at("event");
                 assert(event.contains(name));
                 identity["revision"] = identity.at("revision").get<uint64_t>() + 1;
                 writeMessage(connection, {{"KeyResult", {{"session", session}, {"identity", identity},
-                    {"frame", emptyFrame()}, {"commit", nullptr}, {"outcome", "Passthrough"}}}});
+                    {"frame", emptyFrame()}, {"client_preedit", {{"text", ""}, {"cursor_bytes", 0}}}, {"commit", nullptr}, {"outcome", "Passthrough"}}}});
             }
             assert(readMessage(connection).at("LinuxEvent").at("event").contains("Key")); ++keys;
             if (failure == "timeout") std::this_thread::sleep_for(std::chrono::milliseconds(350));
             else if (failure == "malformed") {
                 const char bad[] = {1, 0, 0, 0, '{'};
                 assert(send(connection, bad, sizeof(bad), MSG_NOSIGNAL) == sizeof(bad));
+            } else if (failure == "invalid-utf8") {
+                Json result = {{"KeyResult", {{"session", session}, {"identity", identity},
+                    {"outcome", "Consumed"}, {"commit", nullptr}, {"frame", emptyFrame()},
+                    {"client_preedit", {{"text", "invalid"}, {"cursor_bytes", 1}}}}}};
+                std::string body = result.dump();
+                body.replace(body.find("invalid"), 7, std::string(1, char(0xff)));
+                const uint32_t size = body.size();
+                const std::array<uint8_t, 4> prefix{uint8_t(size), uint8_t(size >> 8), uint8_t(size >> 16), uint8_t(size >> 24)};
+                assert(send(connection, prefix.data(), prefix.size(), MSG_NOSIGNAL) == 4);
+                assert(send(connection, body.data(), body.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(body.size()));
             } else writeMessage(connection, {{"KeyResult", {{"session", 999}, {"outcome", "Consumed"}, {"commit", "不可上屏"}, {"identity", identity}, {"frame", Json::object()}}}});
         }
         char byte; assert(recv(connection, &byte, 1, 0) == 0); // 失败后关闭，无键重放。

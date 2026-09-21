@@ -1,6 +1,8 @@
 //! 同用户连接内复用独立会话，拒绝未协商输入，关闭通知不产生回包。
 use super::{NEXT_SESSION, Request, dispatch, dispatch_json, session::Session};
-use crate::protocol::{DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent};
+use crate::protocol::{
+    ClientPreedit, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent,
+};
 use qingjian_platform::protocol::{
     ClientMessage, Frame, PROTOCOL_VERSION, SessionId, read_message, write_message,
 };
@@ -164,7 +166,7 @@ pub(super) fn serve_connection(
                         },
                     );
                     Some(
-                        json!({"Update": {"session": local, "frame": Frame::default(), "linux_ui": settings}}),
+                        json!({"Update": {"session": local, "frame": Frame::default(), "client_preedit": ClientPreedit::default(), "linux_ui": settings}}),
                     )
                 }
                 ClientMessage::CloseSession { session } => {

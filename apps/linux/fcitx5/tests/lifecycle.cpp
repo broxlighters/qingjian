@@ -23,11 +23,11 @@ int main(int argc, char **argv) {
     context->focusIn();
     assert(engine.process(context.get(), fcitx::Key(FcitxKey_n)));
     if (scenario.rfind("focusout-", 0) == 0) {
-        if (scenario == "focusout-client-owned") context->commitString(context->inputPanel().clientPreedit().toStringForCommit());
+        if (scenario == "focusout-client-owned") context->commitString(context->inputPanel().clientPreedit().toString());
         context->focusOut();
         fcitx::FocusOutEvent event(context.get());
         engine.deactivate(entry, event);
-        assert(context->committed == "ni");
+        assert(context->committed == "nihao");
     } else if (scenario == "capability-deactivate") {
         fcitx::InputContextSwitchInputMethodEvent event(fcitx::InputMethodSwitchedReason::CapabilityChanged, "qingjian", context.get());
         engine.deactivate(entry, event);

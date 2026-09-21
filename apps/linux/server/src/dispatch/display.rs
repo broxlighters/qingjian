@@ -1,7 +1,8 @@
 //! Linux 版本化显示初始化与实际呈现确认，Windows 协议保持不变。
 use super::Router;
 use crate::protocol::{
-    DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent, LinuxRequest,
+    ClientPreedit, DisplayAcknowledged, DisplayIdentity, LINUX_UI_PROTOCOL, LinuxEvent,
+    LinuxRequest,
 };
 use qingjian_core::Translation;
 use qingjian_platform::protocol::{ClientMessage, ServerMessage, SessionId};
@@ -48,6 +49,19 @@ impl Router {
         match &response {
             ServerMessage::KeyResult { session, frame, .. }
             | ServerMessage::Update { session, frame } => {
+                // 事件已完成；只读当前且仍可显示的会话，不为组装响应切换引擎。
+                let client_preedit = if self.focused == Some(*session)
+                    && self
+                        .sessions
+                        .get(session)
+                        .is_some_and(|info| info.active && !info.disabled)
+                {
+                    ClientPreedit::from(self.engine.raw_preedit())
+                } else {
+                    ClientPreedit::default()
+                };
+                value.as_object_mut()?.values_mut().next()?["client_preedit"] =
+                    json!(client_preedit);
                 self.display_revision += 1;
                 let info = self.sessions.get_mut(session)?;
                 if let Some(identity) = &mut info.display_identity {

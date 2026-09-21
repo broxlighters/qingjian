@@ -288,6 +288,7 @@ DLL 不读文件、不查 mtime。`SessionOpened` 只回过协议版本对得上
 不接云服务或神经重排。`dispatch/session` 交换每个上下文的 EngineSession；真正的能力变化丢弃输入，普通焦点切换隔离保存。
 默认面板插件仅转换事件，Shift 模式、候选点击、分页和失焦提交都由 Server 决定。
 
-Unix socket 用共享长度前缀与 Frame（当前公共版本 6）；插件复用一条连接，每个上下文独立会话。Linux v3 扩展逐会话握手、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实。
+Unix socket 用共享长度前缀与 Frame（当前公共版本 6）；插件复用一条连接，每个上下文独立会话。Linux v4 扩展逐会话握手、确认 Sensitive/Password/Disable 后接受按下/释放、焦点和点击事实，升级时须同时更新 Server 与插件。
+Linux `KeyResult` / `Update` 的 `client_preedit` 在事件后读取 Core 原样文本与 UTF-8 字节光标，供应用行内显示和失焦提交；窗口继续使用 `frame` 的分节显示。两者使用同一会话身份，初始化、失焦及不可显示状态明确发送空行内快照。
 候选回报绑定连接代次、上下文和服务端帧序号，仅当前聚焦页的有效释义进入 `note_displayed`，不把生成帧算作已展示。
 `[general] preedit` 使用已有 `both` / `inline` / `window`；没有新增 Linux 自绘配置。详见 [linux-fcitx5.md](linux-fcitx5.md)。

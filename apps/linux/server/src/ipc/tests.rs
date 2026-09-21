@@ -35,7 +35,7 @@ fn close_and_disconnect_reclaim_every_router_session() {
     client
         .set_read_timeout(Some(Duration::from_secs(2)))
         .unwrap();
-    let connection = thread::spawn(move || serve_connection(server, sender, json!({"version": 3})));
+    let connection = thread::spawn(move || serve_connection(server, sender, json!({"version": 4})));
     let open = |client: &mut UnixStream, id| {
         write_message(
             client,

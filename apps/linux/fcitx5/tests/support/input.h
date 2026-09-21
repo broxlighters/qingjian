@@ -5,10 +5,17 @@
 #include <functional>
 class Input final : public fcitx::InputContext {
 public:
-    explicit Input(fcitx::InputContextManager &manager) : InputContext(manager, "real-test") { created(); setCapabilityFlags(fcitx::CapabilityFlag::Preedit); }
+    explicit Input(fcitx::InputContextManager &manager) : InputContext(manager, "real-test") {
+        created();
+        setCapabilityFlags(fcitx::CapabilityFlag::Preedit);
+        // 真实按键来自有焦点的输入框；失焦响应必须是空行内快照。
+        focusIn();
+    }
     ~Input() override { destroy(); }
     const char *frontend() const override { return "test"; }
     std::string committed;
+
+    size_t commits = 0;
 
     std::function<void()> preeditHook;
 
@@ -18,6 +25,7 @@ public:
 protected:
     void commitStringImpl(const std::string &text) override {
         committed += text;
+        ++commits;
         auto callback = std::move(commitHook);
         if (callback) callback();
     }
